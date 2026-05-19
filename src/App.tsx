@@ -9,13 +9,15 @@ import {
   Droplet, 
   Dumbbell, 
   Apple, 
-  X 
+  X,
+  BarChart3
 } from 'lucide-react';
 import HomeScreen from './components/HomeScreen';
 import IMCScreen from './components/IMCScreen';
 import TreinosScreen from './components/TreinosScreen';
 import DietaScreen from './components/DietaScreen';
 import NotificationsScreen from './components/NotificationsScreen';
+import DashboardScreen from './components/DashboardScreen';
 import { ScreenType, ObjectiveType, WorkoutType } from './types';
 
 export default function App() {
@@ -153,6 +155,13 @@ export default function App() {
             triggerGlobalPush={triggerGlobalPush}
           />
         );
+      case 'dashboard':
+        return (
+          <DashboardScreen
+            onNavigate={handleNavigate}
+            objective={objective}
+          />
+        );
       default:
         return <HomeScreen onNavigate={handleNavigate} />;
     }
@@ -267,6 +276,20 @@ export default function App() {
               <ShieldCheck className="w-3.5 h-3.5" />
               AMBIENTE SEGURO
             </span>
+
+            {/* Float dashboard link */}
+            <button
+              onClick={() => handleNavigate('dashboard')}
+              id="btn-nav-floating-dashboard"
+              title="Dashboard de desempenho e metas"
+              className={`border transition-all p-2.5 rounded-xl text-xs font-bold cursor-pointer ${
+                currentScreen === 'dashboard' 
+                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-950/45' 
+                  : 'bg-slate-800 hover:bg-slate-755 border-slate-700 text-slate-350 hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
 
             {/* Float notification configuration link */}
             <button

@@ -1,4 +1,4 @@
-export type ScreenType = 'home' | 'imc' | 'treinos' | 'dieta' | 'notificacoes';
+export type ScreenType = 'home' | 'imc' | 'treinos' | 'dieta' | 'notificacoes' | 'dashboard';
 export type ObjectiveType = 'PERDER PESO' | 'GANHAR MASSA' | 'HIPERTROFIA';
 export type WorkoutType = 'musculacao' | 'aerobico';
 
