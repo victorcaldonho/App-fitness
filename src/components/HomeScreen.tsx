@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Calculator, Dumbbell, Flame, Apple, ChevronRight, Zap } from 'lucide-react';
+import { Calculator, Dumbbell, Flame, Apple, ChevronRight, Zap, Bell } from 'lucide-react';
 import { ScreenType } from '../types';
 
 interface HomeScreenProps {
@@ -130,6 +130,27 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                 <span className="text-white/70 text-xs font-mono">Planejamento focado por objetivo</span>
               </div>
               <ChevronRight className="w-5 h-5 text-white/70 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </motion.button>
+
+          {/* BOTÃO NOTIFICAÇÕES */}
+          <motion.button
+            variants={itemVariants}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onNavigate('notificacoes')}
+            id="btn-nav-notificacoes"
+            className="sm:col-span-2 flex flex-col justify-between items-start text-left bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-[24px] h-[150px] shadow-lg shadow-black/40 border border-slate-700/60 cursor-pointer group hover:from-slate-750 hover:to-slate-850 transition-all duration-300 w-full"
+          >
+            <div className="w-12 h-12 rounded-xl bg-white/5 backdrop-blur-md flex items-center justify-center group-hover:bg-white/10 transition-colors">
+              <Bell className="w-7 h-7 text-blue-500" />
+            </div>
+            <div className="w-full flex justify-between items-center mt-2">
+              <div className="flex flex-col">
+                <span className="text-white font-extrabold text-lg tracking-tight font-sans">Mural de Notificações & Lembretes</span>
+                <span className="text-slate-400 text-xs font-mono">Configure e teste alertas de hidratação, treinos e refeições</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition-transform" />
             </div>
           </motion.button>
         </motion.div>
