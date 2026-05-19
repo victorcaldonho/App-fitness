@@ -10,7 +10,8 @@ import {
   Dumbbell, 
   Apple, 
   X,
-  BarChart3
+  BarChart3,
+  MapPin
 } from 'lucide-react';
 import HomeScreen from './components/HomeScreen';
 import IMCScreen from './components/IMCScreen';
@@ -18,6 +19,7 @@ import TreinosScreen from './components/TreinosScreen';
 import DietaScreen from './components/DietaScreen';
 import NotificationsScreen from './components/NotificationsScreen';
 import DashboardScreen from './components/DashboardScreen';
+import GymLocatorScreen from './components/GymLocatorScreen';
 import { ScreenType, ObjectiveType, WorkoutType } from './types';
 
 export default function App() {
@@ -162,6 +164,12 @@ export default function App() {
             objective={objective}
           />
         );
+      case 'academia':
+        return (
+          <GymLocatorScreen
+            onNavigate={handleNavigate}
+          />
+        );
       default:
         return <HomeScreen onNavigate={handleNavigate} />;
     }
@@ -289,6 +297,20 @@ export default function App() {
               }`}
             >
               <BarChart3 className="w-4 h-4" />
+            </button>
+
+            {/* Float gym map radar link */}
+            <button
+              onClick={() => handleNavigate('academia')}
+              id="btn-nav-floating-academia"
+              title="Localizador de Academias"
+              className={`border transition-all p-2.5 rounded-xl text-xs font-bold cursor-pointer relative ${
+                currentScreen === 'academia' 
+                  ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-950/45' 
+                  : 'bg-slate-800 hover:bg-slate-755 border-slate-700 text-slate-350 hover:text-white'
+              }`}
+            >
+              <MapPin className="w-4 h-4 text-emerald-400" />
             </button>
 
             {/* Float notification configuration link */}

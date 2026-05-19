@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Calculator, Dumbbell, Flame, Apple, ChevronRight, Zap, Bell, BarChart3 } from 'lucide-react';
+import { Calculator, Dumbbell, Flame, Apple, ChevronRight, Zap, Bell, BarChart3, MapPin } from 'lucide-react';
 import { ScreenType } from '../types';
 
 interface HomeScreenProps {
@@ -164,7 +164,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
             whileTap={{ scale: 0.98 }}
             onClick={() => onNavigate('notificacoes')}
             id="btn-nav-notificacoes"
-            className="sm:col-span-2 flex flex-col justify-between items-start text-left bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-[24px] h-[150px] shadow-lg shadow-black/40 border border-slate-700/60 cursor-pointer group hover:from-slate-750 hover:to-slate-850 transition-all duration-300 w-full"
+            className="sm:col-span-2 flex flex-col justify-between items-start text-left bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-[24px] h-[150px] shadow-lg shadow-black/40 border border-slate-700/60 cursor-pointer group hover:from-slate-755 hover:to-slate-850 transition-all duration-300 w-full"
           >
             <div className="w-12 h-12 rounded-xl bg-white/5 backdrop-blur-md flex items-center justify-center group-hover:bg-white/10 transition-colors">
               <Bell className="w-7 h-7 text-blue-500" />
@@ -175,6 +175,30 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                 <span className="text-slate-400 text-xs font-mono">Configure e teste alertas de hidratação, treinos e refeições</span>
               </div>
               <ChevronRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </motion.button>
+
+          {/* BOTÃO MAPA LOCALIZADOR DE ACADEMIAS */}
+          <motion.button
+            variants={itemVariants}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onNavigate('academia')}
+            id="btn-nav-academia"
+            className="sm:col-span-2 flex flex-col justify-between items-start text-left bg-gradient-to-br from-teal-950/70 to-slate-950 p-6 rounded-[24px] h-[150px] shadow-lg shadow-black/50 border border-teal-500/10 cursor-pointer group hover:border-teal-500/25 transition-all duration-300 w-full"
+          >
+            <div className="w-12 h-12 rounded-xl bg-teal-500/10 flex items-center justify-center group-hover:bg-teal-500/20 transition-colors">
+              <MapPin className="w-6 h-6 text-emerald-400 animate-pulse" />
+            </div>
+            <div className="w-full flex justify-between items-center mt-2">
+              <div className="flex flex-col">
+                <span className="text-white font-extrabold text-lg tracking-tight font-sans">Localizador de Academias</span>
+                <span className="text-emerald-350/80 text-xs font-mono">Veja as academias mais próximas no mapa com rotas GPS</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/15">SINAL GPS</span>
+                <ChevronRight className="w-5 h-5 text-emerald-450 group-hover:translate-x-1 transition-transform" />
+              </div>
             </div>
           </motion.button>
         </motion.div>
