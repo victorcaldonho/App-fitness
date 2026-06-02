@@ -16,9 +16,21 @@ import {
   Calendar,
   Scale,
   Activity,
-  ChevronRight
+  ChevronRight,
+  Cloud,
+  Check,
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 import { ScreenType, ObjectiveType } from '../types';
+import { safeStorage } from '../safeStorage';
+import { 
+  getOrCreateUserId, 
+  syncDashboardStats, 
+  syncWeights, 
+  syncActivities, 
+  fetchAllUserData 
+} from '../supabaseClient';
 
 interface DashboardScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -54,6 +66,12 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
   ]);
   const [newWeight, setNewWeight] = useState<string>('');
 
+  // Supabase Sync states
+  const [syncId, setSyncId] = useState<string>('');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
+  const [customSyncIdInput, setCustomSyncIdInput] = useState<string>('');
+  const [copied, setCopied] = useState<boolean>(false);
+
   // Daily log activities
   const [activities, setActivities] = useState<{ id: string; time: string; text: string; category: 'workout' | 'meal' | 'water' }[]>([
     { id: '1', time: '08:15', text: 'Copo d\'água de 350ml extraído', category: 'water' },
@@ -63,8 +81,8 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
 
   // Read set goals or set defaults based on user objective
   useEffect(() => {
-    // Read cached values if available
-    const cachedStats = localStorage.getItem('vita_dashboard_stats');
+    // 1. Read cached values standard first
+    const cachedStats = safeStorage.getItem('vita_dashboard_stats');
     if (cachedStats) {
       try {
         const data = JSON.parse(cachedStats);
@@ -81,7 +99,53 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
       }
     }
 
-    // Adjust goals dynamically based on objective preset
+    // 2. Fetch and set active Supabase User UUID
+    const activeId = getOrCreateUserId();
+    setSyncId(activeId);
+
+    // 3. Populate from Remote Cloud Database
+    setSyncStatus('syncing');
+    fetchAllUserData(activeId)
+      .then((res) => {
+        if (res.success) {
+          if (res.dashboard) {
+            setWaterLogged(res.dashboard.water_logged ?? 1750);
+            setWaterGoal(res.dashboard.water_goal ?? 3200);
+            setWorkoutsCompleted(res.dashboard.workouts_completed ?? 3);
+            setCaloriesLogged(res.dashboard.calories_logged ?? 1850);
+            setCaloriesGoal(res.dashboard.calories_goal ?? 2400);
+            setProtein(res.dashboard.protein ?? 115);
+            setProteinGoal(res.dashboard.protein_goal ?? 160);
+            setCarbs(res.dashboard.carbs ?? 180);
+            setCarbsGoal(res.dashboard.carbs_goal ?? 250);
+            setFats(res.dashboard.fats ?? 55);
+            setFatsGoal(res.dashboard.fats_goal ?? 80);
+          }
+          if (res.weights && res.weights.length > 0) {
+            setWeights(res.weights);
+          }
+          if (res.activities && res.activities.length > 0) {
+            const formatted = res.activities.map((a: any, idx: number) => ({
+              id: a.id || String(idx),
+              time: a.time,
+              text: a.text,
+              category: a.category as 'workout' | 'meal' | 'water'
+            }));
+            setActivities(formatted);
+          }
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('error');
+        }
+      })
+      .catch((e) => {
+        console.error("Error loaded:", e);
+        setSyncStatus('error');
+      });
+  }, []);
+
+  // Set default goals based on global user objectives
+  useEffect(() => {
     if (objective === 'PERDER PESO') {
       setCaloriesGoal(2000);
       setProteinGoal(150);
@@ -103,7 +167,7 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
     }
   }, [objective]);
 
-  // Save to localStorage helper
+  // Save to localStorage helper & sync to Supabase Cloud Engine
   const saveStats = (
     wLog: number, 
     workComp: number, 
@@ -114,7 +178,8 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
     wHistory = weights,
     actList = activities
   ) => {
-    localStorage.setItem('vita_dashboard_stats', JSON.stringify({
+    // A. Keep Local Storage cached for instant fluid speed
+    safeStorage.setItem('vita_dashboard_stats', JSON.stringify({
       waterLogged: wLog,
       workoutsCompleted: workComp,
       caloriesLogged: calL,
@@ -124,6 +189,90 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
       weights: wHistory,
       activities: actList
     }));
+
+    // B. Push asynchronously to Supabase
+    const activeUserId = safeStorage.getItem('vita_supabase_sync_id') || syncId;
+    if (activeUserId) {
+      setSyncStatus('syncing');
+      Promise.all([
+        syncDashboardStats(activeUserId, {
+          waterLogged: wLog,
+          waterGoal,
+          workoutsCompleted: workComp,
+          workoutsGoal,
+          caloriesLogged: calL,
+          caloriesGoal,
+          protein: p,
+          proteinGoal,
+          carbs: c,
+          carbsGoal,
+          fats: f,
+          fatsGoal
+        }),
+        syncWeights(activeUserId, wHistory),
+        syncActivities(activeUserId, actList)
+      ]).then(() => {
+        setSyncStatus('synced');
+      }).catch((e) => {
+        console.error('Supabase Sync error:', e);
+        setSyncStatus('error');
+      });
+    }
+  };
+
+  const handleManualSyncIdConnect = () => {
+    const trimmed = customSyncIdInput.trim().toUpperCase();
+    if (!trimmed) return;
+    
+    safeStorage.setItem('vita_supabase_sync_id', trimmed);
+    setSyncId(trimmed);
+    setSyncStatus('syncing');
+
+    fetchAllUserData(trimmed).then((res) => {
+      if (res.success) {
+        if (res.dashboard) {
+          setWaterLogged(res.dashboard.water_logged ?? 0);
+          setWaterGoal(res.dashboard.water_goal ?? 3000);
+          setWorkoutsCompleted(res.dashboard.workouts_completed ?? 0);
+          setCaloriesLogged(res.dashboard.calories_logged ?? 0);
+          setCaloriesGoal(res.dashboard.calories_goal ?? 2000);
+          setProtein(res.dashboard.protein ?? 0);
+          setProteinGoal(res.dashboard.protein_goal ?? 160);
+          setCarbs(res.dashboard.carbs ?? 0);
+          setCarbsGoal(res.dashboard.carbs_goal ?? 250);
+          setFats(res.dashboard.fats ?? 0);
+          setFatsGoal(res.dashboard.fats_goal ?? 80);
+        }
+        if (res.weights && res.weights.length > 0) {
+          setWeights(res.weights);
+        }
+        if (res.activities && res.activities.length > 0) {
+          const formatted = res.activities.map((a: any, idx: number) => ({
+            id: a.id || String(idx),
+            time: a.time,
+            text: a.text,
+            category: a.category as 'workout' | 'meal' | 'water'
+          }));
+          setActivities(formatted);
+        }
+        setSyncStatus('synced');
+        setCustomSyncIdInput('');
+        alert('Dados da nuvem Supabase carregados com sucesso!');
+      } else {
+        setSyncStatus('error');
+        alert('Falha ao obter os dados da nuvem. Verifique o Código de Sincronização.');
+      }
+    }).catch(err => {
+      setSyncStatus('error');
+      console.error(err);
+      alert('Erro de conexão ao carregar dados do Supabase.');
+    });
+  };
+
+  const copySyncIdToClipboard = () => {
+    navigator.clipboard.writeText(syncId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   // Log fast actions
@@ -289,6 +438,80 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
             Mudar Meta
           </button>
         </div>
+
+        {/* SUPABASE SYNCHRONIZATION CONTROLLER PANEL */}
+        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 mb-6 shadow-md shadow-black/35">
+          <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Cloud className="w-5 h-5 text-blue-500 animate-pulse" />
+              <span className="text-white text-xs font-black uppercase tracking-wider font-sans">Sincronização Supabase</span>
+            </div>
+            
+            {/* Sync Badge state */}
+            <div className="flex items-center gap-2">
+              {syncStatus === 'syncing' && (
+                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/15 animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Sincronizando...
+                </span>
+              )}
+              {syncStatus === 'synced' && (
+                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/15">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Nuvem Atualizada
+                </span>
+              )}
+              {syncStatus === 'error' && (
+                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/15">
+                  Rede Inativa
+                </span>
+              )}
+              {syncStatus === 'idle' && (
+                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-slate-400 bg-slate-950 px-2.5 py-1 rounded-full border border-slate-800">
+                  Pronto
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+            Este aplicativo salva em cache localmente e sincroniza o seu histórico de pesos, refeições, lembretes e metas em nuvem no Supabase. Use o seu ID para carregar a sessão em outros dispositivos.
+          </p>
+
+          <div className="flex flex-col gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800/80 mb-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-mono font-bold uppercase text-slate-400 tracking-wider">Seu Código de Sincronização:</span>
+              <button 
+                onClick={copySyncIdToClipboard}
+                className="flex items-center gap-1 text-[10px] font-mono text-emerald-400 hover:text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/10 transition-colors cursor-pointer"
+              >
+                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-emerald-400" />}
+                {copied ? 'Copiado!' : 'Copiar ID'}
+              </button>
+            </div>
+            <p className="text-[11px] font-mono text-slate-300 break-all select-all font-semibold leading-tight">{syncId || "Carregando..."}</p>
+          </div>
+
+          {/* Load external Sync ID */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Inserir ID de sincronização existente..."
+              value={customSyncIdInput}
+              onChange={(e) => setCustomSyncIdInput(e.target.value)}
+              className="bg-slate-950 py-2.5 px-3 rounded-lg border border-slate-800 text-[11px] text-white font-mono placeholder:text-slate-500 flex-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleManualSyncIdConnect}
+              disabled={syncStatus === 'syncing' || !customSyncIdInput.trim()}
+              className="bg-blue-600 disabled:bg-slate-800 disabled:text-slate-500 hover:bg-blue-500 py-2.5 px-4 rounded-lg text-white font-bold text-xs uppercase tracking-wider transition-colors whitespace-nowrap cursor-pointer"
+            >
+              Conectar e Carregar
+            </button>
+          </div>
+        </div>
+
+
 
         {/* CORE STATS Bento Grid */}
         <div className="grid grid-cols-2 gap-4 mb-6">

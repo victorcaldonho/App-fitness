@@ -10,8 +10,7 @@ import {
   Dumbbell, 
   Apple, 
   X,
-  BarChart3,
-  MapPin
+  BarChart3
 } from 'lucide-react';
 import HomeScreen from './components/HomeScreen';
 import IMCScreen from './components/IMCScreen';
@@ -19,13 +18,54 @@ import TreinosScreen from './components/TreinosScreen';
 import DietaScreen from './components/DietaScreen';
 import NotificationsScreen from './components/NotificationsScreen';
 import DashboardScreen from './components/DashboardScreen';
-import GymLocatorScreen from './components/GymLocatorScreen';
 import { ScreenType, ObjectiveType, WorkoutType } from './types';
+import { safeStorage } from './safeStorage';
+import { getOrCreateUserId, fetchAllUserData, syncProfile } from './supabaseClient';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
-  const [objective, setObjective] = useState<ObjectiveType | null>(null);
-  const [workoutType, setWorkoutType] = useState<WorkoutType | null>(null);
+  
+  const [objective, setObjective] = useState<ObjectiveType | null>(() => {
+    return (safeStorage.getItem('vita_objective') as ObjectiveType) || null;
+  });
+  const [workoutType, setWorkoutType] = useState<WorkoutType | null>(() => {
+    return (safeStorage.getItem('vita_workout_type') as WorkoutType) || null;
+  });
+
+  // Load objective profile stats from Supabase on startup
+  useEffect(() => {
+    const userId = getOrCreateUserId();
+    fetchAllUserData(userId).then((res) => {
+      if (res.success && res.profile) {
+        if (res.profile.objective) {
+          setObjective(res.profile.objective as ObjectiveType);
+          safeStorage.setItem('vita_objective', res.profile.objective);
+        }
+        if (res.profile.workout_type) {
+          setWorkoutType(res.profile.workout_type as WorkoutType);
+          safeStorage.setItem('vita_workout_type', res.profile.workout_type);
+        }
+      }
+    }).catch(err => {
+      console.warn("Could not auto load user profile on startup:", err);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (objective) {
+      safeStorage.setItem('vita_objective', objective);
+      const userId = getOrCreateUserId();
+      syncProfile(userId, objective, workoutType);
+    }
+  }, [objective]);
+
+  useEffect(() => {
+    if (workoutType) {
+      safeStorage.setItem('vita_workout_type', workoutType);
+      const userId = getOrCreateUserId();
+      syncProfile(userId, objective, workoutType);
+    }
+  }, [workoutType]);
 
   // Layout mode switcher: simulator (phone view) or fluid full-width web
   const [useSimulator, setUseSimulator] = useState<boolean>(true);
@@ -164,12 +204,6 @@ export default function App() {
             objective={objective}
           />
         );
-      case 'academia':
-        return (
-          <GymLocatorScreen
-            onNavigate={handleNavigate}
-          />
-        );
       default:
         return <HomeScreen onNavigate={handleNavigate} />;
     }
@@ -297,20 +331,6 @@ export default function App() {
               }`}
             >
               <BarChart3 className="w-4 h-4" />
-            </button>
-
-            {/* Float gym map radar link */}
-            <button
-              onClick={() => handleNavigate('academia')}
-              id="btn-nav-floating-academia"
-              title="Localizador de Academias"
-              className={`border transition-all p-2.5 rounded-xl text-xs font-bold cursor-pointer relative ${
-                currentScreen === 'academia' 
-                  ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-950/45' 
-                  : 'bg-slate-800 hover:bg-slate-755 border-slate-700 text-slate-350 hover:text-white'
-              }`}
-            >
-              <MapPin className="w-4 h-4 text-emerald-400" />
             </button>
 
             {/* Float notification configuration link */}

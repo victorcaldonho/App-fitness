@@ -20,6 +20,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { ScreenType, ObjectiveType } from '../types';
+import { safeStorage } from '../safeStorage';
 
 interface NotificationsScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -67,7 +68,7 @@ export default function NotificationsScreen({
     }
 
     // Load configurations from LocalStorage
-    const savedWater = localStorage.getItem('vita_notif_water');
+    const savedWater = safeStorage.getItem('vita_notif_water');
     if (savedWater) {
       try {
         const data = JSON.parse(savedWater);
@@ -82,7 +83,7 @@ export default function NotificationsScreen({
       }
     }
 
-    const savedWorkout = localStorage.getItem('vita_notif_workout');
+    const savedWorkout = safeStorage.getItem('vita_notif_workout');
     if (savedWorkout) {
       try {
         const data = JSON.parse(savedWorkout);
@@ -95,7 +96,7 @@ export default function NotificationsScreen({
       }
     }
 
-    const savedMeal = localStorage.getItem('vita_notif_meal');
+    const savedMeal = safeStorage.getItem('vita_notif_meal');
     if (savedMeal) {
       try {
         const data = JSON.parse(savedMeal);
@@ -109,7 +110,7 @@ export default function NotificationsScreen({
       }
     }
 
-    const savedGeneral = localStorage.getItem('vita_notif_general');
+    const savedGeneral = safeStorage.getItem('vita_notif_general');
     if (savedGeneral) {
       try {
         const data = JSON.parse(savedGeneral);
@@ -138,7 +139,7 @@ export default function NotificationsScreen({
   };
 
   const handleSaveAll = () => {
-    localStorage.setItem('vita_notif_water', JSON.stringify({
+    safeStorage.setItem('vita_notif_water', JSON.stringify({
       enabled: waterEnabled,
       interval: waterInterval,
       ml: waterMl,
@@ -147,14 +148,14 @@ export default function NotificationsScreen({
       dailyTarget: waterDailyTarget
     }));
 
-    localStorage.setItem('vita_notif_workout', JSON.stringify({
+    safeStorage.setItem('vita_notif_workout', JSON.stringify({
       enabled: workoutEnabled,
       time: workoutTime,
       motivation: workoutMotivation,
       days: workoutDays
     }));
 
-    localStorage.setItem('vita_notif_meal', JSON.stringify({
+    safeStorage.setItem('vita_notif_meal', JSON.stringify({
       enabled: mealEnabled,
       breakfast: mealBreakfast,
       lunch: mealLunch,
@@ -162,7 +163,7 @@ export default function NotificationsScreen({
       dinner: mealDinner
     }));
 
-    localStorage.setItem('vita_notif_general', JSON.stringify({
+    safeStorage.setItem('vita_notif_general', JSON.stringify({
       sound: notificationSound,
       alertType
     }));
