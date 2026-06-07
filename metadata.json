@@ -1,6 +1,6 @@
 {
   "name": "Vita Elite",
   "description": "Plataforma premium para evolução física com calculadora corporais IMC, treinos personalizados e guia de nutrição de alto rendimento.",
-  "requestFramePermissions": ["geolocation"],
+  "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
