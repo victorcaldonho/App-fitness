@@ -1,7 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, Dumbbell, Flame, CheckCircle, Trophy, Sparkles, BookOpen, Clock, PlayCircle } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  Dumbbell, 
+  Flame, 
+  CheckCircle, 
+  Trophy, 
+  Sparkles, 
+  Clock, 
+  Check, 
+  Play, 
+  TrendingUp,
+  Award,
+  Zap,
+  Activity
+} from 'lucide-react';
 import { ScreenType, ObjectiveType, WorkoutType } from '../types';
+import { safeStorage } from '../safeStorage';
+import { getOrCreateUserId, syncDashboardStats, syncActivities } from '../supabaseClient';
 
 interface TreinosScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -11,6 +27,11 @@ interface TreinosScreenProps {
   setWorkoutType: (type: WorkoutType | null) => void;
 }
 
+interface Exercise {
+  name: string;
+  muscleGroup: string;
+}
+
 export default function TreinosScreen({
   onNavigate,
   objective,
@@ -18,53 +39,221 @@ export default function TreinosScreen({
   workoutType,
   setWorkoutType,
 }: TreinosScreenProps) {
-  // Track completed exercises to calculate training progress
-  const [completedItems, setCompletedItems] = useState<{ [key: string]: boolean }>({});
+  
+  const [selectedTreino, setSelectedTreino] = useState<'A' | 'B' | 'C' | null>(null);
+  const [completedExercises, setCompletedExercises] = useState<{ [key: string]: boolean }>({});
+  const [showCelebration, setShowCelebration] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // DATABASE OF WORKOUT PLANS
-  const getMusculacaoPorObjetivo = (obj: string) => {
-    if (obj === 'PERDER PESO') {
+  // 1. Get custom exercises depending on chosen user objective
+  const getExercisesForSplit = (obj: ObjectiveType | null, split: 'A' | 'B' | 'C'): Exercise[] => {
+    const isWeightLoss = obj === 'PERDER PESO';
+    
+    if (split === 'A') {
+      // 4 Peito, 2 Ombros, 2 Triceps
+      if (isWeightLoss) {
+        return [
+          { name: 'Flexão de Braço Dinâmica (Peso Corporal)', muscleGroup: 'PEITO' },
+          { name: 'Supino Inclinado com Halteres (Foco Definição)', muscleGroup: 'PEITO' },
+          { name: 'Crucifixo Reto com Halteres', muscleGroup: 'PEITO' },
+          { name: 'Crossover Polia Alta (Foco Miolo/Cardio)', muscleGroup: 'PEITO' },
+          { name: 'Desenvolvimento com Halteres no Banco', muscleGroup: 'OMBROS' },
+          { name: 'Elevação Lateral de Alta Cadência', muscleGroup: 'OMBROS' },
+          { name: 'Tríceps no Pulley Alto com Corda', muscleGroup: 'TRÍCEPS' },
+          { name: 'Tríceps Coice Unilateral na Polia', muscleGroup: 'TRÍCEPS' }
+        ];
+      } else {
+        // GANHAR MASSA or HIPERTROFIA
+        return [
+          { name: 'Supino Reto com Barra Olímpica', muscleGroup: 'PEITO' },
+          { name: 'Supino Inclinado com Halteres Pesados', muscleGroup: 'PEITO' },
+          { name: 'Crucifixo Inclinado com Halteres', muscleGroup: 'PEITO' },
+          { name: 'Supino Declinado com Barra', muscleGroup: 'PEITO' },
+          { name: 'Desenvolvimento Militar Barra Livre em Pé', muscleGroup: 'OMBROS' },
+          { name: 'Elevação Lateral com Carga Progressiva', muscleGroup: 'OMBROS' },
+          { name: 'Tríceps Testa na Barra W (Banco Reto)', muscleGroup: 'TRÍCEPS' },
+          { name: 'Tríceps Francês Sentado com Halter Pesado', muscleGroup: 'TRÍCEPS' }
+        ];
+      }
+    }
+
+    if (split === 'B') {
+      // 4 Costas, 2 Ombros, 2 Biceps
+      if (isWeightLoss) {
+        return [
+          { name: 'Puxador Alto Frente com Barra', muscleGroup: 'COSTAS' },
+          { name: 'Remada Curvada com Halteres (Pegada Supinada)', muscleGroup: 'COSTAS' },
+          { name: 'Remada Sentada na Máquina Triângulo', muscleGroup: 'COSTAS' },
+          { name: 'Pulldown com Corda (Metabólico)', muscleGroup: 'COSTAS' },
+          { name: 'Desenvolvimento Arnold Sentado', muscleGroup: 'OMBROS' },
+          { name: 'Crucifixo Invertido Sentado com Halteres', muscleGroup: 'OMBROS' },
+          { name: 'Rosca Direta Clássica com Barra W', muscleGroup: 'BÍCEPS' },
+          { name: 'Rosca Martelo Alternada com Halteres', muscleGroup: 'BÍCEPS' }
+        ];
+      } else {
+        // GANHAR MASSA / HIPERTROFIA
+        return [
+          { name: 'Levantamento Terra (Força Base)', muscleGroup: 'COSTAS' },
+          { name: 'Barra Fixa - Pegada Aberta (ou Graviton)', muscleGroup: 'COSTAS' },
+          { name: 'Remada Curvada com Barra Reta Maciça', muscleGroup: 'COSTAS' },
+          { name: 'Remada Unilateral com Halter Pesado (Serrote)', muscleGroup: 'COSTAS' },
+          { name: 'Desenvolvimento Militar Sentado com Halteres', muscleGroup: 'OMBROS' },
+          { name: 'Crucifixo Invertido na Polia Alta', muscleGroup: 'OMBROS' },
+          { name: 'Rosca Direta com Barra Reta de Aço', muscleGroup: 'BÍCEPS' },
+          { name: 'Rosca Scott com Barra W Concentrada', muscleGroup: 'BÍCEPS' }
+        ];
+      }
+    }
+
+    // Split C: Inferior Completo (Quadríceps, Isquiotibiais, Glúteos, Panturrilhas)
+    if (isWeightLoss) {
       return [
-        { id: 'A', nome: 'A: Full Body Queima', itens: ['Agachamento + Press - 4x20', 'Burpees - 4x15', 'Remada Curvada - 4x20', 'Mountain Climbers - 4x30s', 'Polichinelos - 4x1min', 'Prancha Dinâmica - 3x1min'] },
-        { id: 'B', nome: 'B: Superior & Resistência', itens: ['Supino Halter - 3x20', 'Puxada Aberta - 3x20', 'Flexão de Braços - 3x Max', 'Bíceps + Tríceps (Super-set) - 3x15', 'Desenvolvimento - 3x15', 'Abdominal Infra - 4x25'] },
-        { id: 'C', nome: 'C: Inferior & Tônico', itens: ['Leg Press - 4x20', 'Afundo Progressivo - 3x15', 'Extensora - 4x25', 'Stiff com Halter - 3x20', 'Panturrilha - 4x30', 'Elevação Pélvica - 3x20'] },
+        { name: 'Agachamento Livre com Peso Corporal (Completo)', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Leg Press 45º Contínuo de Alta Repetição', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Cadeira Extensora com Isometria no Topo', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Cadeira Flexora Sentado', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Afundo Dinâmico com Passadas Alternadas', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Stiff Unilateral ou Bilateral Halteres Leves', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Elevação Pélvica Rápida no Solo', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Gêmeos em Pé (Panturrilhas) Explosivo', muscleGroup: 'INFERIOR COMPLETO' }
+      ];
+    } else {
+      // GANHAR MASSA / HIPERTROFIA
+      return [
+        { name: 'Agachamento Livre Traseiro Barra Pesada', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Leg Press 45º Pesado Repetições Estritas', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Cadeira Extensora (Carga Máxima de Quadríceps)', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Mesa Flexora Deitado (Isometria de Isquiotibiais)', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Stiff Pesado com Barra Reta Olímpica', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Avanço Caminhando com Halteres e Passadas Longas', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Elevação Pélvica Pesada com Barra Reta', muscleGroup: 'INFERIOR COMPLETO' },
+        { name: 'Gêmeos em Pé Máquina (Carga de Panturrilhas)', muscleGroup: 'INFERIOR COMPLETO' }
       ];
     }
-    if (obj === 'GANHAR MASSA') {
-      return [
-        { id: 'A', nome: 'A: Força Bruta (Push)', itens: ['Supino Reto Barra - 5x5', 'Desenvolvimento Militar - 4x8', 'Supino Inclinado - 3x10', 'Tríceps Testa - 4x8', 'Paralelas com Peso - 3x Falha', 'Elevação Lateral - 3x12'] },
-        { id: 'B', nome: 'B: Tração (Pull)', itens: ['Levantamento Terra - 5x5', 'Barra Fixa - 4x Falha', 'Remada Cavalinho - 4x8', 'Rosca Direta W - 3x10', 'Encolhimento Barra - 4x10', 'Rosca Inversa - 3x12'] },
-        { id: 'C', nome: 'C: Membros Inferiores', itens: ['Agachamento Livre - 5x5', 'Leg Press 45º - 4x10', 'Cadeira Flexora - 4x12', 'Extensora - 3x12', 'Panturrilha em Pé - 5x15', 'Agachamento Sumô - 3x10'] },
-      ];
-    }
-    // Default or HIPERTROFIA
-    return [
-      { id: 'A', nome: 'A: Peito e Ombro', itens: ['Supino Inclinado - 4x10', 'Crucifixo Reto - 3x12', 'Cross Over - 4x15', 'Elev. Lateral Cabo - 4x12', 'Desenv. Arnold - 3x10', 'Flexão Diamante - 3x Falha'] },
-      { id: 'B', nome: 'B: Costas e Trapézio', itens: ['Puxada Triângulo - 4x10', 'Remada Unilateral - 3x12', 'Pulldown com Corda - 4x15', 'Face Pull - 4x15', 'Remada Alta - 3x10', 'Lombar no Banco - 3x15'] },
-      { id: 'C', nome: 'C: Braços e Pernas', itens: ['Rosca Scott - 4x10', 'Tríceps Pulley - 4x12', 'Rosca Concentrada - 3x12', 'Tríceps Francês - 3x12', 'Cadeira Extensora - 4x15', 'Mesa Flexora - 4x15'] },
-    ];
   };
 
-  const getAerobicoPorObjetivo = (obj: string) => {
-    if (obj === 'PERDER PESO') {
-      return [
-        { id: '1', nome: 'HIIT Explosivo', itens: ['Tiro na Esteira - 30s (Max)', 'Descanso Ativo - 30s (Caminhada)', 'Repetições - 15 vezes', 'Polichinelos - 3x1 min', 'Corda - 5 min direto', 'Trote Regenerativo - 5 min'] },
-      ];
+  const activeExercises = getExercisesForSplit(objective, selectedTreino || 'A');
+
+  // Toggle singular exercise
+  const handleToggleExercise = (index: number) => {
+    const key = `${objective}-${selectedTreino}-${index}`;
+    setCompletedExercises(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Helper values
+  const currentCompletedCount = activeExercises.filter(
+    (_, idx) => !!completedExercises[`${objective}-${selectedTreino}-${idx}`]
+  ).length;
+
+  const isCurrentWorkoutFinished = activeExercises.length > 0 && currentCompletedCount === activeExercises.length;
+  const progressPctValue = activeExercises.length > 0 
+    ? Math.round((currentCompletedCount / activeExercises.length) * 100) 
+    : 0;
+
+  // Handle finalize entire split (Treino A, B or C)
+  const handleFinalizeWorkout = async () => {
+    if (!selectedTreino || !objective) return;
+    setIsSyncing(true);
+
+    const splitName = selectedTreino === 'A' 
+      ? 'Treino A (Peito, Ombros e Tríceps)' 
+      : selectedTreino === 'B' 
+      ? 'Treino B (Costas, Ombros e Bíceps)' 
+      : 'Treino C (Inferior Completo)';
+
+    try {
+      // Get current hours
+      const now = new Date();
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const timeStr = `${hrs}:${mins}`;
+
+      // Initialize defaults
+      let cachedStats: any = {
+        waterLogged: 1750,
+        workoutsCompleted: 3,
+        caloriesLogged: 1850,
+        protein: 115,
+        carbs: 180,
+        fats: 55,
+        weights: [],
+        activities: []
+      };
+
+      const localStr = safeStorage.getItem('vita_dashboard_stats');
+      if (localStr) {
+        try {
+          const parsed = JSON.parse(localStr);
+          cachedStats = { ...cachedStats, ...parsed };
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Add workout session day increment and dynamic logs
+      const updatedWorkouts = (cachedStats.workoutsCompleted ?? 0) + 1;
+      const newActivity = {
+        id: Date.now().toString(),
+        time: timeStr,
+        text: `Ficha ${selectedTreino} Executada: ${splitName} finalizado com sucesso! 💪 Metabólico ativo.`,
+        category: 'workout'
+      };
+
+      const currentActs = Array.isArray(cachedStats.activities) ? [...cachedStats.activities] : [];
+      const updatedActs = [newActivity, ...currentActs].slice(0, 35);
+
+      cachedStats.workoutsCompleted = updatedWorkouts;
+      cachedStats.activities = updatedActs;
+
+      // Update offline persistence
+      safeStorage.setItem('vita_dashboard_stats', JSON.stringify(cachedStats));
+
+      // Push safely to Cloud Supabase DB Client
+      const activeUserId = getOrCreateUserId();
+      if (activeUserId) {
+        await Promise.all([
+          syncDashboardStats(activeUserId, {
+            waterLogged: cachedStats.waterLogged ?? 1750,
+            waterGoal: 3200,
+            workoutsCompleted: updatedWorkouts,
+            workoutsGoal: 5,
+            caloriesLogged: cachedStats.caloriesLogged ?? 1850,
+            caloriesGoal: 2400,
+            protein: cachedStats.protein ?? 115,
+            proteinGoal: 160,
+            carbs: cachedStats.carbs ?? 180,
+            carbsGoal: 250,
+            fats: cachedStats.fats ?? 55,
+            fatsGoal: 80
+          }),
+          syncActivities(activeUserId, updatedActs.map(act => ({
+            id: act.id,
+            time: act.time,
+            text: act.text,
+            category: act.category
+          })))
+        ]);
+        console.log('[TreinosScreen] Successfully updated Supabase engine stats.');
+      }
+      
+      // Trigger local congratulations screen
+      setShowCelebration(true);
+    } catch (err) {
+      console.error('[TreinosScreen] Critical finalization error:', err);
+    } finally {
+      setIsSyncing(false);
     }
-    if (obj === 'GANHAR MASSA') {
-      return [
-        { id: '1', nome: 'Cardio de Manutenção', itens: ['Caminhada Inclinada - 20 min', 'Frequência Cardíaca - 120bpm', 'Bicicleta Leve - 10 min', 'Alongamento Ativo', 'Mobilidade de Quadril', 'Core (Prancha) - 3x1 min'] },
-      ];
-    }
-    // Default or HIPERTROFIA
-    return [
-      { id: '1', nome: 'Aeróbico Metabólico', itens: ['Corrida Moderada - 30 min', 'Escada (Step) - 10 min', 'Burpees Lentos - 3x12', 'Mountain Climbers - 3x45s', 'Remo Interno - 5 min', 'Caminhada Final - 5 min'] },
-    ];
   };
 
   const handleBack = () => {
-    if (workoutType) {
-      setWorkoutType(null);
+    if (showCelebration) {
+      setShowCelebration(false);
+      setSelectedTreino(null);
+    } else if (selectedTreino) {
+      setSelectedTreino(null);
     } else if (objective) {
       setObjective(null);
     } else {
@@ -72,34 +261,15 @@ export default function TreinosScreen({
     }
   };
 
-  const planosExibicao = workoutType === 'musculacao' 
-    ? getMusculacaoPorObjetivo(objective || '') 
-    : workoutType === 'aerobico' 
-    ? getAerobicoPorObjetivo(objective || '') 
-    : [];
-
-  const handleToggleExercise = (key: string) => {
-    setCompletedItems(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const totalExercises = planosExibicao.reduce((sum, p) => sum + p.itens.length, 0);
-  const completedCount = Object.keys(completedItems).filter(
-    k => completedItems[k] && planosExibicao.some(p => p.itens.some(item => `${p.id}-${item}` === k))
-  ).length;
-
-  const progressPercent = totalExercises > 0 ? Math.round((completedCount / totalExercises) * 100) : 0;
-
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 overflow-x-hidden pb-12">
-      {/* HEADER HERO */}
-      <div className="relative h-[28vh] w-full overflow-hidden">
+    <div className="flex flex-col min-h-screen bg-slate-950 overflow-x-hidden pb-12 w-full">
+      
+      {/* HEADER HERO BANNER */}
+      <div className="relative h-[25vh] sm:h-[180px] w-full overflow-hidden">
         <img
-          src="https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1470&auto=format&fit=crop"
-          alt="Treinamento físico"
-          className="w-full h-full object-cover object-center filter brightness-[0.5]"
+          src="https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=1200&auto=format&fit=crop"
+          alt="Sports & Workout Athlete"
+          className="w-full h-full object-cover object-center filter brightness-[0.4]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent" />
         
@@ -107,211 +277,383 @@ export default function TreinosScreen({
           <button 
             onClick={handleBack}
             id="btn-treinos-back"
-            className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition-all cursor-pointer border border-white/5 text-white"
+            className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition-all cursor-pointer border border-white/5 text-white shadow-lg"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           
-          <div className="flex items-center gap-1 font-sans">
-            <span className="text-white text-sm font-light tracking-tight">VITA</span>
-            <span className="text-blue-500 text-sm font-black tracking-tight">ELITE</span>
+          <div className="flex items-center gap-1.5 font-sans bg-black/30 backdrop-blur-sm px-3 py-1 rounded-full border border-white/10">
+            <span className="text-white text-xs font-light tracking-tight">VITA</span>
+            <span className="text-blue-500 text-xs font-black tracking-tight">ELITE</span>
+            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
           </div>
         </div>
       </div>
 
-      {/* WORKOUT INTERFACE WINDOW */}
-      <div className="relative z-10 bg-slate-950 rounded-t-[35px] -mt-[40px] px-6 pt-6 flex-1 max-w-xl mx-auto w-full">
-        {/* Drag Indicator Mimic */}
-        <div className="w-10 h-1 bg-slate-800" />
+      {/* CORE CONTAINER INTERFACE PANEL */}
+      <div className="relative z-10 bg-slate-950 rounded-t-[38px] -mt-[45px] px-6 pt-7 flex-1 max-w-xl mx-auto w-full">
+        
+        <div className="w-12 h-1 bg-slate-800 rounded-full mx-auto mb-6" />
 
         <AnimatePresence mode="wait">
-          {/* STEP 1: OBJECTIVE CHOOSER */}
+          
+          {/* STEP 1: CHOOSE THE PHYSICAL OBJECTIVE */}
           {!objective && (
             <motion.div
               key="step-objective"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, x: -20 }}
               className="flex flex-col"
             >
-              <h2 className="text-white text-2xl font-black tracking-tight mb-1 font-sans">OBJETIVO</h2>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-6">Escolha sua meta para hoje</p>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="p-1 rounded-lg bg-blue-500/10 border border-blue-500/15">
+                  <Dumbbell className="w-4 h-4 text-blue-500" />
+                </span>
+                <span className="text-slate-500 text-[10px] font-mono font-black uppercase tracking-[0.2em]">Alta Performance</span>
+              </div>
+              <h2 className="text-white text-3xl font-black tracking-tight font-sans mb-1 leading-none">SEU OBJETIVO</h2>
+              <p className="text-slate-450 text-xs mb-6">Selecione seu foco corporal ideal para calibrar seus splits de treino:</p>
 
               <div className="flex flex-col gap-4">
-                {['PERDER PESO', 'GANHAR MASSA', 'HIPERTROFIA'].map((obj) => (
+                {[
+                  { id: 'PERDER PESO', desc: 'Definição, aceleração metabólica e resistência física.' },
+                  { id: 'GANHAR MASSA', desc: 'Construção muscular de força bruta e sobrecarga progressiva.' },
+                  { id: 'HIPERTROFIA', desc: 'Aumento de volume muscular com alto tempo sob tensão.' }
+                ].map((obj) => (
                   <button
-                    key={obj}
-                    onClick={() => setObjective(obj as ObjectiveType)}
-                    id={`btn-target-${obj.toLowerCase().replace(' ', '-')}`}
-                    className="flex justify-between items-center bg-slate-900 hover:bg-slate-850 border border-slate-800 p-5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all group text-left"
+                    key={obj.id}
+                    onClick={() => setObjective(obj.id as ObjectiveType)}
+                    id={`btn-target-${obj.id.toLowerCase().replace(' ', '-')}`}
+                    className="flex flex-col bg-slate-900 hover:bg-slate-850 border border-slate-800/80 hover:border-blue-500/30 p-5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all group text-left shadow-lg shadow-black/10"
                   >
-                    <span className="text-white font-black tracking-wide text-[15px]">{obj}</span>
-                    <Sparkles className="w-5 h-5 text-blue-500 group-hover:animate-spin" />
+                    <div className="flex justify-between items-center w-full mb-1">
+                      <span className="text-white font-black tracking-wide text-lg font-sans">{obj.id}</span>
+                      <Sparkles className="w-4.5 h-4.5 text-blue-500 group-hover:scale-125 group-hover:animate-spin transition-transform" />
+                    </div>
+                    <p className="text-slate-400 text-xs font-medium leading-relaxed">{obj.desc}</p>
                   </button>
                 ))}
               </div>
 
-              {/* MOTIVATIONAL STATEMENT (required) */}
-              <div className="mt-12 flex flex-col items-center text-center px-4">
-                <div className="w-10 h-1 bg-blue-500 mb-6 rounded-full" />
-                <p className="text-white text-lg font-black uppercase leading-snug max-w-md">
+              {/* MOTIVATIONAL WATERMARK */}
+              <div className="mt-14 flex flex-col items-center text-center px-4">
+                <div className="w-10 h-1 bg-gradient-to-r from-blue-500 to-cyan-400 mb-6 rounded-full" />
+                <p className="text-white text-[16px] font-black leading-snug uppercase max-w-sm tracking-wide font-sans">
                   A DISCIPLINA É A <span className="text-blue-500 underline decoration-2 underline-offset-4">PONTE</span> ENTRE SEUS OBJETIVOS E SUAS <span className="text-blue-500 underline decoration-2 underline-offset-4">CONQUISTAS</span>.
                 </p>
                 <p className="text-slate-500 font-bold font-mono text-[9px] tracking-[0.3em] uppercase mt-4">
-                  VITA ELITE | HIGH PERFORMANCE
+                  VITA ELITE • HIGH PERFORMANCE
                 </p>
               </div>
             </motion.div>
           )}
 
-          {/* STEP 2: CATEGORY SELECTION (MUSCULAÇÃO VS CARDIO) */}
-          {objective && !workoutType && (
+          {/* STEP 2: SELECT WORKOUT SPLIT FICHA (TREINO A / B / C) */}
+          {objective && !selectedTreino && !showCelebration && (
             <motion.div
-              key="step-modality"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
+              key="step-split-selection"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
               className="flex flex-col"
             >
-              <h2 className="text-white text-2xl font-black tracking-tight mb-1 font-sans">MODALIDADE</h2>
-              <p className="text-slate-500 text-sm mb-6 flex items-center gap-1">
-                Foco selecionado: <span className="text-blue-500 font-extrabold">{objective}</span>
-              </p>
+              <div className="flex items-center gap-1.5 mb-1.5 text-blue-500 font-mono text-[9px] font-extrabold uppercase tracking-widest">
+                <span>OBJETIVO: {objective}</span>
+              </div>
+              <h2 className="text-white text-3xl font-black tracking-tight font-sans mb-1 leading-none">FICHAS DE TREINO</h2>
+              <p className="text-slate-400 text-xs mb-6">Qual split muscular você deseja executar hoje?</p>
 
               <div className="flex flex-col gap-4">
-                {/* Weight Training */}
-                <button
-                  onClick={() => setWorkoutType('musculacao')}
-                  id="btn-workout-musculacao"
-                  className="flex items-center gap-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 p-5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all group text-left"
-                >
-                  <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
-                    <Dumbbell className="w-6 h-6 text-blue-500 group-hover:animate-bounce" />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-black text-lg">Musculação</h3>
-                    <p className="text-slate-400 text-xs">Aperfeiçoamento de força e densidade</p>
-                  </div>
-                </button>
-
-                {/* Cardio */}
-                <button
-                  onClick={() => setWorkoutType('aerobico')}
-                  id="btn-workout-aerobico"
-                  className="flex items-center gap-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 p-5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all group text-left"
-                >
-                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/10 group-hover:bg-red-500/20 transition-colors">
-                    <Flame className="w-6 h-6 text-red-500 group-hover:scale-110 transition-transform" />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-black text-lg">Aeróbico</h3>
-                    <p className="text-slate-400 text-xs">Metabolismo acelerado e condicionamento</p>
-                  </div>
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* STEP 3: SPECIFIC WORKOUT PLAN SHEETS */}
-          {objective && workoutType && (
-            <motion.div
-              key="step-plans"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              className="flex flex-col"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h2 className="text-white text-2xl font-black tracking-tight font-display">
-                    {workoutType === 'musculacao' ? 'MUSCULAÇÃO' : 'CARDIO AERÓBICO'}
-                  </h2>
-                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
-                    PLAN PARA: <span className={workoutType === 'musculacao' ? 'text-blue-500 font-extrabold' : 'text-red-500 font-extrabold'}>{objective}</span>
-                  </p>
-                </div>
-
-                {/* Training Timer Mock Indicator */}
-                <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold text-slate-400">
-                  <Clock className="w-3.5 h-3.5 text-blue-500" />
-                  <span>45-60 MIN</span>
-                </div>
-              </div>
-
-              {/* PROGRESS BAR FOR SESSION ENGAGEMENT */}
-              <div className="bg-slate-900/50 border border-slate-800/60 p-4 rounded-2xl mb-6">
-                <div className="flex justify-between items-center text-xs font-bold text-slate-300 mb-2">
-                  <span className="flex items-center gap-1">
-                    <Trophy className="w-3.5 h-3.5 text-yellow-500" />
-                    Completo da Sessão
-                  </span>
-                  <span className="font-mono text-blue-400">{completedCount}/{totalExercises} ({progressPercent}%)</span>
-                </div>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progressPercent}%` }}
-                    transition={{ type: 'spring', damping: 15 }}
-                    className={`h-full ${workoutType === 'musculacao' ? 'bg-blue-500' : 'bg-red-500'}`} 
-                  />
-                </div>
-              </div>
-
-              {/* LIST OF WORKOUT SHEETS */}
-              <div className="flex flex-col gap-6">
-                {planosExibicao.map((plano: any) => (
-                  <div
-                    key={plano.id}
-                    className="bg-slate-900 border border-slate-800 rounded-[24px] p-5 shadow-lg shadow-black/25 flex flex-col"
+                {[
+                  {
+                    id: 'A',
+                    nome: 'TREINO A',
+                    alvo: 'Peito, Ombros e Tríceps',
+                    detalhe: '8 Exercícios: 4 Peito, 2 Ombros e 2 Tríceps • Foco superior anterior.',
+                    bgGradient: 'from-blue-900/40 to-slate-900/90 hover:border-blue-500/40'
+                  },
+                  {
+                    id: 'B',
+                    nome: 'TREINO B',
+                    alvo: 'Costas, Ombros e Bíceps',
+                    detalhe: '8 Exercícios: 4 Costas, 2 Ombros e 2 Bíceps • Foco tração posterior.',
+                    bgGradient: 'from-sky-900/40 to-slate-900/90 hover:border-sky-500/40'
+                  },
+                  {
+                    id: 'C',
+                    nome: 'TREINO C',
+                    alvo: 'Membros Inferiores Completo',
+                    detalhe: '8 Exercícios: Quadríceps, Posterior, Glúteos & Panturrilhas • Foco pernas completo.',
+                    bgGradient: 'from-emerald-900/40 to-slate-900/90 hover:border-emerald-500/40'
+                  }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTreino(t.id as 'A' | 'B' | 'C')}
+                    id={`btn-split-${t.id}`}
+                    className={`flex flex-col bg-gradient-to-br ${t.bgGradient} border border-slate-800/80 p-5 rounded-2xl cursor-pointer active:scale-[0.99] transition-all group text-left`}
                   >
-                    <div className="flex items-center justify-between border-b border-slate-800/60 pb-3 mb-4">
-                      <h3 className="text-white text-[16px] font-black">{plano.nome}</h3>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold text-white uppercase ${
-                        workoutType === 'musculacao' ? 'bg-blue-600' : 'bg-red-600'
-                      }`}>
-                        Ficha {plano.id}
-                      </span>
+                    <div className="flex justify-between items-center w-full mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-black border border-white/20 bg-white/5 text-white/90 px-2 py-0.5 rounded">SPLIT {t.id}</span>
+                        <span className="text-white font-black tracking-wide text-lg font-sans">{t.nome}</span>
+                      </div>
+                      <Dumbbell className="w-5 h-5 text-blue-500 group-hover:scale-120 group-hover:rotate-12 transition-transform" />
                     </div>
-
-                    <div className="flex flex-col gap-3">
-                      {plano.itens.map((item: string, index: number) => {
-                        const itemKey = `${plano.id}-${item}`;
-                        const isDone = !!completedItems[itemKey];
-
-                        return (
-                          <div
-                            key={index}
-                            onClick={() => handleToggleExercise(itemKey)}
-                            id={`exercise-row-${plano.id}-${index}`}
-                            className={`flex items-center gap-3 p-3.5 rounded-xl transition-all cursor-pointer border ${
-                              isDone 
-                                ? 'bg-slate-800/40 border-emerald-500/20 text-slate-500 line-through' 
-                                : 'bg-slate-950 hover:bg-slate-950/80 border-slate-800/60 text-slate-200'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isDone}
-                              onChange={() => {}} // Hooked on parent container click
-                              className="w-4 h-4 accent-emerald-500 rounded cursor-pointer pointer-events-none"
-                            />
-                            
-                            <div className="flex-1 flex flex-col">
-                              <span className="text-xs font-bold leading-normal">{item}</span>
-                            </div>
-                            
-                            {!isDone && (
-                              <PlayCircle className="w-4 h-4 opacity-30 text-gray-400 flex-shrink-0" />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                    <span className="text-blue-400 font-extrabold text-[15px] font-sans mb-1.5">{t.alvo}</span>
+                    <p className="text-slate-400 text-xs leading-relaxed font-medium">{t.detalhe}</p>
+                  </button>
                 ))}
               </div>
+
+              <button
+                onClick={() => setObjective(null)}
+                className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-500 hover:text-white font-mono font-black uppercase tracking-wider py-3 border border-slate-850/60 rounded-xl hover:bg-slate-900/30 transition-all cursor-pointer"
+              >
+                Voltar e alterar Objetivo
+              </button>
             </motion.div>
           )}
+
+          {/* STEP 3: EXERCISE SHEET DETAIL (TREINO A / B / C SCROLL) */}
+          {objective && selectedTreino && !showCelebration && (
+            <motion.div
+              key="step-exercise-sheet"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="flex flex-col"
+            >
+              {/* TOP SEGMENTED SWITCH BAR */}
+              <div className="flex bg-slate-900 border border-slate-800/80 p-1.5 rounded-2xl mb-5 shadow-inner">
+                {['A', 'B', 'C'].map((letter) => (
+                  <button
+                    key={letter}
+                    onClick={() => setSelectedTreino(letter as 'A' | 'B' | 'C')}
+                    className={`flex-1 text-center py-2.5 rounded-xl font-bold font-sans text-xs uppercase tracking-wide transition-colors cursor-pointer ${
+                      selectedTreino === letter 
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-950/40' 
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-850/45'
+                    }`}
+                  >
+                    Treino {letter}
+                  </button>
+                ))}
+              </div>
+
+              {/* SHEET HEADLINE STATS */}
+              <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 mb-5 shadow-md">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] font-mono font-black text-blue-500 uppercase tracking-widest">Ativo: {objective}</span>
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-slate-400 font-bold">
+                    <Clock className="w-3.5 h-3.5 text-blue-500 animate-pulse" /> ~50 MIN
+                  </span>
+                </div>
+                
+                <h3 className="text-white text-xl font-black font-sans leading-none mb-1">
+                  Ficha {selectedTreino} • {
+                    selectedTreino === 'A' 
+                      ? 'Peito, Ombros e Tríceps' 
+                      : selectedTreino === 'B' 
+                      ? 'Costas, Ombros e Bíceps' 
+                      : 'Inferior Completo'
+                  }
+                </h3>
+                <p className="text-[11px] text-slate-450 leading-relaxed mb-4">
+                  Dividido de forma milimétrica com a orientação de <span className="font-mono text-blue-400 font-bold">3 séries de 12 repetições (3x12)</span> por exercício para ganho de desempenho ótimo.
+                </p>
+
+                {/* VISUAL SESSION STATUS */}
+                <div className="border-t border-slate-800/80 pt-3.5 mt-3.5">
+                  <div className="flex justify-between items-center text-xs font-black text-slate-300 mb-2">
+                    <span className="flex items-center gap-1.5 uppercase font-sans tracking-wide">
+                      <Trophy className="w-4 h-4 text-amber-500" /> Progression
+                    </span>
+                    <span className="font-mono text-blue-400 text-xs">
+                      {currentCompletedCount} de {activeExercises.length} ({progressPctValue}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-850">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${progressPctValue}%` }}
+                      transition={{ type: 'spring', stiffness: 80, damping: 12 }}
+                      className="h-full bg-gradient-to-r from-blue-600 to-sky-400 rounded-full"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* EXERCISE ITEMS LIST WITH CONFIRM BUTTON */}
+              <div className="flex flex-col gap-3.5 mb-8">
+                {activeExercises.map((ex, index) => {
+                  const key = `${objective}-${selectedTreino}-${index}`;
+                  const isDone = !!completedExercises[key];
+
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.04 }}
+                      id={`exercise-card-${index}`}
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4.5 rounded-2xl border transition-all ${
+                        isDone 
+                          ? 'bg-slate-950/40 border-emerald-500/20 text-slate-500 shadow-inner' 
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-100 shadow-md'
+                      }`}
+                    >
+                      {/* Exercise Name and Muscles */}
+                      <div className="flex-1 flex flex-col min-w-0 pr-2">
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                          <span className={`text-[9px] font-mono font-bold tracking-widest px-2 py-0.5 rounded uppercase ${
+                            isDone 
+                              ? 'bg-slate-900 text-slate-600 border border-slate-850' 
+                              : ex.muscleGroup === 'PEITO' 
+                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15'
+                              : ex.muscleGroup === 'OMBROS'
+                              ? 'bg-sky-500/10 text-sky-400 border border-sky-500/15'
+                              : ex.muscleGroup === 'TRÍCEPS'
+                              ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/15'
+                              : ex.muscleGroup === 'COSTAS'
+                              ? 'bg-violet-500/10 text-violet-400 border border-violet-500/15'
+                              : ex.muscleGroup === 'BÍCEPS'
+                              ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/15'
+                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15'
+                          }`}>
+                            {ex.muscleGroup}
+                          </span>
+
+                          <span className={`text-[9px] font-mono font-bold uppercase ${
+                            isDone ? 'text-slate-600' : 'text-amber-500 font-extrabold'
+                          }`}>
+                            ORIENTAÇÃO: 3x12
+                          </span>
+                        </div>
+                        <h4 className={`text-[15px] font-black leading-snug font-sans tracking-tight break-words ${isDone ? 'line-through text-slate-500 font-medium' : 'text-white'}`}>
+                          {ex.name}
+                        </h4>
+                      </div>
+
+                      {/* SIDE RECTANGULAR ACTION BUTTON TO CONFIRM DETECTED */}
+                      <div>
+                        <button
+                          onClick={() => handleToggleExercise(index)}
+                          className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-sans font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all ${
+                            isDone 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 text-[10px] font-bold' 
+                              : 'bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white'
+                          }`}
+                        >
+                          {isDone ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[3px]" />
+                              <span>Executado ✓</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
+                              <span>Confirmar</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* DYNAMIC VERDE (GREEN) WORKOUT FINALIZE CONTROLLER BUTTON */}
+              {isCurrentWorkoutFinished && (
+                <motion.div
+                  initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4.5 shadow-xl text-center flex flex-col items-center mb-6"
+                >
+                  <Award className="w-8 h-8 text-emerald-400 mb-2.5 animate-bounce" />
+                  <h4 className="text-white text-base font-black uppercase font-sans tracking-tight mb-1">Ficha Completada!</h4>
+                  <p className="text-slate-400 text-xs mb-4">Você executou perfeitamente todos os exercícios da ficha {selectedTreino}.</p>
+
+                  <button
+                    onClick={handleFinalizeWorkout}
+                    disabled={isSyncing}
+                    className="w-full py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-sans font-black tracking-widest text-xs uppercase transition-colors shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isSyncing ? (
+                      <span>SALVANDO...</span>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 stroke-[3px]" />
+                        <span>Finalizar meu treino</span>
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+              )}
+
+              <button
+                onClick={() => setSelectedTreino(null)}
+                className="flex items-center justify-center gap-1.5 text-xs text-slate-500 hover:text-white font-mono font-bold uppercase tracking-wider py-3 border border-slate-850/60 rounded-xl hover:bg-slate-900/30 transition-all cursor-pointer"
+              >
+                Voltar para lista de splits
+              </button>
+            </motion.div>
+          )}
+
+          {/* CELEBRATION CONGRATULATIONS SCREEN */}
+          {showCelebration && (
+            <motion.div
+              key="step-congrats"
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center text-center py-8"
+            >
+              <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mb-6 shadow-xl shadow-emerald-900/10 relative">
+                <Trophy className="w-10 h-10 text-emerald-400 animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full flex items-center justify-center border-2 border-slate-950 text-[8px] text-slate-950 font-black">✓</span>
+              </div>
+
+              <span className="text-emerald-400 font-mono font-black text-xs tracking-widest uppercase mb-1 flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 fill-emerald-400 text-emerald-400" /> TREINO CONCLUÍDO
+              </span>
+              <h2 className="text-white text-3xl font-black tracking-tight font-sans mb-3">PARABÉNS, ATLETA!</h2>
+              
+              <p className="text-slate-300 text-sm max-w-sm mb-6 leading-relaxed">
+                O seu treino foi salvo em cache local e sincronizado automaticamente na nuvem do seu perfil <span className="text-blue-400 font-black font-mono">SUPABASE</span> do aplicativo.
+              </p>
+
+              <div className="flex flex-col gap-3.5 w-full">
+                <button
+                  onClick={() => {
+                    setShowCelebration(false);
+                    // Reset all selected completions of current objective
+                    const cleanObj: any = {};
+                    activeExercises.forEach((_, idx) => {
+                      cleanObj[`${objective}-${selectedTreino}-${idx}`] = false;
+                    });
+                    setCompletedExercises(prev => ({ ...prev, ...cleanObj }));
+                    setSelectedTreino(null);
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-sans font-black tracking-wider text-xs uppercase cursor-pointer transition-colors shadow-md"
+                >
+                  Novo Treino / Alterar Ficha
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowCelebration(false);
+                    onNavigate('home');
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-300 hover:text-white border border-slate-800 text-xs font-sans font-black tracking-wider uppercase cursor-pointer transition-all"
+                >
+                  Voltar para o Início
+                </button>
+              </div>
+            </motion.div>
+          )}
+
         </AnimatePresence>
       </div>
     </div>

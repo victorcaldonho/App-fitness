@@ -76,30 +76,6 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
           animate="show"
           className="grid grid-cols-1 sm:grid-cols-2 gap-4"
         >
-          {/* BOTÃO DASHBOARD DE DESEMPENHO - SLATE SLEEK STYLE */}
-          <motion.button
-            variants={itemVariants}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onNavigate('dashboard')}
-            id="btn-nav-dashboard"
-            className="sm:col-span-2 flex flex-col justify-between items-start text-left bg-gradient-to-br from-slate-900 to-slate-950 p-6 rounded-[24px] h-[160px] shadow-2xl shadow-black/80 border border-slate-800 cursor-pointer group hover:border-emerald-500/30 transition-all duration-300 w-full"
-          >
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-              <BarChart3 className="w-6 h-6 text-emerald-400" />
-            </div>
-            <div className="w-full flex justify-between items-center mt-4">
-              <div className="flex flex-col">
-                <span className="text-white font-black text-xl tracking-tight font-sans">Dashboard de Desempenho</span>
-                <span className="text-slate-400 text-xs">Métricas de treino, peso, água e macros diários</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/15">ANALISADOR ✓</span>
-                <ChevronRight className="w-5 h-5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
-              </div>
-            </div>
-          </motion.button>
-
           {/* BOTÃO IMC */}
           <motion.button
             variants={itemVariants}
@@ -154,6 +130,30 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
                 <span className="text-white/70 text-xs font-mono">Planejamento focado por objetivo</span>
               </div>
               <ChevronRight className="w-5 h-5 text-white/70 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </motion.button>
+
+          {/* BOTÃO DASHBOARD DE DESEMPENHO - SLATE SLEEK STYLE */}
+          <motion.button
+            variants={itemVariants}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onNavigate('dashboard')}
+            id="btn-nav-dashboard"
+            className="sm:col-span-2 flex flex-col justify-between items-start text-left bg-gradient-to-br from-slate-900 to-slate-950 p-6 rounded-[24px] h-[160px] shadow-2xl shadow-black/80 border border-slate-800 cursor-pointer group hover:border-emerald-500/30 transition-all duration-300 w-full"
+          >
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+              <BarChart3 className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="w-full flex justify-between items-center mt-4">
+              <div className="flex flex-col">
+                <span className="text-white font-black text-xl tracking-tight font-sans">Dashboard de Desempenho</span>
+                <span className="text-slate-400 text-xs">Métricas de treino, peso, água e macros diários</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/15">ANALISADOR ✓</span>
+                <ChevronRight className="w-5 h-5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
+              </div>
             </div>
           </motion.button>
 

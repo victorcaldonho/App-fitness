@@ -18,12 +18,13 @@ import TreinosScreen from './components/TreinosScreen';
 import DietaScreen from './components/DietaScreen';
 import NotificationsScreen from './components/NotificationsScreen';
 import DashboardScreen from './components/DashboardScreen';
+import WelcomeScreen from './components/WelcomeScreen';
 import { ScreenType, ObjectiveType, WorkoutType } from './types';
 import { safeStorage } from './safeStorage';
 import { getOrCreateUserId, fetchAllUserData, syncProfile } from './supabaseClient';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>('welcome');
   
   const [objective, setObjective] = useState<ObjectiveType | null>(() => {
     return (safeStorage.getItem('vita_objective') as ObjectiveType) || null;
@@ -162,6 +163,8 @@ export default function App() {
 
   const renderActiveScreen = () => {
     switch (currentScreen) {
+      case 'welcome':
+        return <WelcomeScreen onNavigate={handleNavigate} />;
       case 'home':
         return <HomeScreen onNavigate={handleNavigate} />;
       case 'imc':
@@ -270,97 +273,99 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 font-sans antialiased text-slate-100 flex flex-col justify-between selection:bg-blue-650 selection:text-white">
       
       {/* PERSISTENT LIGHT GLOBAL BAR */}
-      <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-blue-600 text-white p-2 rounded-xl shadow-md shadow-blue-900/40">
-              <Activity className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-baseline gap-0.5 leading-none">
-                <span className="font-display font-light text-xl tracking-tight text-white">VITA</span>
-                <span className="font-display font-black text-xl tracking-tight text-blue-500">ELITE</span>
+      {currentScreen !== 'welcome' && (
+        <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-600 text-white p-2 rounded-xl shadow-md shadow-blue-900/40">
+                <Activity className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[9px] font-mono tracking-widest text-slate-500 font-bold">ATLETAS PRO</span>
+              <div className="flex flex-col">
+                <div className="flex items-baseline gap-0.5 leading-none">
+                  <span className="font-display font-light text-xl tracking-tight text-white">VITA</span>
+                  <span className="font-display font-black text-xl tracking-tight text-blue-500">ELITE</span>
+                </div>
+                <span className="text-[9px] font-mono tracking-widest text-slate-500 font-bold">ATLETAS PRO</span>
+              </div>
+            </div>
+
+            {/* VIEW SWITCHER FOR DESKTOP WORKSPACE DEVELOPERS */}
+            <div className="hidden md:flex items-center gap-1.5 bg-slate-950/45 backdrop-blur-lg px-2 py-1.5 rounded-2xl border border-slate-800 shadow-inner">
+              <button
+                onClick={() => setUseSimulator(true)}
+                id="btn-layout-simulator"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
+                  useSimulator 
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-950/40' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                Simulador Celular
+              </button>
+              <button
+                onClick={() => setUseSimulator(false)}
+                id="btn-layout-fullscreen"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
+                  !useSimulator 
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-950/40' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                Widescreen Cheio
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="hidden sm:inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/15 px-3 py-1.5 rounded-full text-[10px] font-mono font-bold text-emerald-400">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                AMBIENTE SEGURO
+              </span>
+
+              {/* Float dashboard link */}
+              <button
+                onClick={() => handleNavigate('dashboard')}
+                id="btn-nav-floating-dashboard"
+                title="Dashboard de desempenho e metas"
+                className={`border transition-all p-2.5 rounded-xl text-xs font-bold cursor-pointer ${
+                  currentScreen === 'dashboard' 
+                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-950/45' 
+                    : 'bg-slate-800 hover:bg-slate-755 border-slate-700 text-slate-350 hover:text-white'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+              </button>
+
+              {/* Float notification configuration link */}
+              <button
+                onClick={() => handleNavigate('notificacoes')}
+                id="btn-nav-floating-bell"
+                title="Central de lembretes e alarmes push"
+                className={`border transition-all p-2.5 rounded-xl text-xs font-bold cursor-pointer relative ${
+                  currentScreen === 'notificacoes' 
+                    ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-950/45' 
+                    : 'bg-slate-800 hover:bg-slate-755 border-slate-700 text-slate-350 hover:text-white'
+                }`}
+              >
+                <Bell className="w-4 h-4" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 border border-slate-900 rounded-full animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 border border-slate-900 rounded-full" />
+              </button>
+
+              {currentScreen !== 'home' && (
+                <button
+                  onClick={() => handleNavigate('home')}
+                  id="btn-nav-floating-home"
+                  className="bg-slate-800 hover:bg-slate-755 border border-slate-700 text-slate-350 hover:text-white transition-all px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer font-sans"
+                >
+                  Início
+                </button>
+              )}
             </div>
           </div>
-
-          {/* VIEW SWITCHER FOR DESKTOP WORKSPACE DEVELOPERS */}
-          <div className="hidden md:flex items-center gap-1.5 bg-slate-950/45 backdrop-blur-lg px-2 py-1.5 rounded-2xl border border-slate-800 shadow-inner">
-            <button
-              onClick={() => setUseSimulator(true)}
-              id="btn-layout-simulator"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
-                useSimulator 
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-950/40' 
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              Simulador Celular
-            </button>
-            <button
-              onClick={() => setUseSimulator(false)}
-              id="btn-layout-fullscreen"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold tracking-wide transition-all cursor-pointer ${
-                !useSimulator 
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-950/40' 
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Monitor className="w-3.5 h-3.5" />
-              Widescreen Cheio
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/15 px-3 py-1.5 rounded-full text-[10px] font-mono font-bold text-emerald-400">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              AMBIENTE SEGURO
-            </span>
-
-            {/* Float dashboard link */}
-            <button
-              onClick={() => handleNavigate('dashboard')}
-              id="btn-nav-floating-dashboard"
-              title="Dashboard de desempenho e metas"
-              className={`border transition-all p-2.5 rounded-xl text-xs font-bold cursor-pointer ${
-                currentScreen === 'dashboard' 
-                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-950/45' 
-                  : 'bg-slate-800 hover:bg-slate-755 border-slate-700 text-slate-350 hover:text-white'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-            </button>
-
-            {/* Float notification configuration link */}
-            <button
-              onClick={() => handleNavigate('notificacoes')}
-              id="btn-nav-floating-bell"
-              title="Central de lembretes e alarmes push"
-              className={`border transition-all p-2.5 rounded-xl text-xs font-bold cursor-pointer relative ${
-                currentScreen === 'notificacoes' 
-                  ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-950/45' 
-                  : 'bg-slate-800 hover:bg-slate-755 border-slate-700 text-slate-350 hover:text-white'
-              }`}
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 border border-slate-900 rounded-full animate-ping" />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 border border-slate-900 rounded-full" />
-            </button>
-
-            {currentScreen !== 'home' && (
-              <button
-                onClick={() => handleNavigate('home')}
-                id="btn-nav-floating-home"
-                className="bg-slate-800 hover:bg-slate-755 border border-slate-700 text-slate-350 hover:text-white transition-all px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer font-sans"
-              >
-                Início
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* CORE VIEWPORT SHELL */}
       <main className="flex-1 w-full max-w-7xl mx-auto flex items-center justify-center py-6 px-4 md:px-8">
@@ -402,20 +407,29 @@ export default function App() {
       </main>
 
       {/* FOOTER ACCENTS */}
-      <footer className="bg-slate-900 border-t border-slate-800 py-6 text-center select-none text-slate-500 text-[11px] font-mono tracking-wider">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© 2026 VITA ELITE ATHLETICS. LICENÇA SUPREMA.</p>
-          <div className="flex items-center gap-4">
-            <span className="hover:text-blue-500 transition-colors pointer-events-none">IMC COMPUTADOR</span>
-            <span>•</span>
-            <span className="hover:text-red-500 transition-colors pointer-events-none">TREINOS PRO</span>
-            <span>•</span>
-            <span className="hover:text-emerald-500 transition-colors pointer-events-none">DIETA METABÓLICA</span>
-            <span>•</span>
-            <span className="hover:text-blue-400 transition-colors pointer-events-none text-blue-500/80">LEMBULETO PUSH ✓</span>
+      {currentScreen !== 'welcome' && (
+        <footer className="bg-slate-900 border-t border-slate-800 py-6 text-center select-none text-slate-500 text-[11px] font-mono tracking-wider">
+          <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p>© 2026 VITA ELITE ATHLETICS. LICENÇA SUPREMA.</p>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => handleNavigate('welcome')} 
+                className="text-blue-400 hover:text-blue-300 font-bold transition-all bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/15 cursor-pointer"
+              >
+                ★ TELA INICIAL
+              </button>
+              <span>•</span>
+              <span className="hover:text-blue-500 transition-colors pointer-events-none">IMC COMPUTADOR</span>
+              <span>•</span>
+              <span className="hover:text-red-500 transition-colors pointer-events-none">TREINOS PRO</span>
+              <span>•</span>
+              <span className="hover:text-emerald-500 transition-colors pointer-events-none">DIETA METABÓLICA</span>
+              <span>•</span>
+              <span className="hover:text-blue-400 transition-colors pointer-events-none text-blue-500/80">LEMBULETO PUSH ✓</span>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
