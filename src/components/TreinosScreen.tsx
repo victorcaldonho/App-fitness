@@ -180,7 +180,8 @@ export default function TreinosScreen({
         carbs: 180,
         fats: 55,
         weights: [],
-        activities: []
+        activities: [],
+        trainedDays: [true, true, true, false, false, false, false]
       };
 
       const localStr = safeStorage.getItem('vita_dashboard_stats');
@@ -193,8 +194,20 @@ export default function TreinosScreen({
         }
       }
 
-      // Add workout session day increment and dynamic logs
-      const updatedWorkouts = (cachedStats.workoutsCompleted ?? 0) + 1;
+      // Aligned with weekday: Seg=0, Ter=1, Qua=2, Qui=3, Sex=4, Sáb=5, Dom=6
+      const getDayIdx = () => {
+        const d = new Date().getDay();
+        return d === 0 ? 6 : d - 1;
+      };
+      const currentDayIdx = getDayIdx();
+      
+      const newTrainedDays = Array.isArray(cachedStats.trainedDays) 
+        ? [...cachedStats.trainedDays] 
+        : [true, true, true, false, false, false, false];
+      
+      newTrainedDays[currentDayIdx] = true;
+      const updatedWorkouts = newTrainedDays.filter(Boolean).length;
+
       const newActivity = {
         id: Date.now().toString(),
         time: timeStr,
@@ -206,6 +219,7 @@ export default function TreinosScreen({
       const updatedActs = [newActivity, ...currentActs].slice(0, 35);
 
       cachedStats.workoutsCompleted = updatedWorkouts;
+      cachedStats.trainedDays = newTrainedDays;
       cachedStats.activities = updatedActs;
 
       // Update offline persistence

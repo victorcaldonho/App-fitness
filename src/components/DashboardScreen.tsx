@@ -42,8 +42,9 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
   const [waterLogged, setWaterLogged] = useState<number>(1750); // ml
   const [waterGoal, setWaterGoal] = useState<number>(3000); // ml
   
+  const [trainedDays, setTrainedDays] = useState<boolean[]>([true, true, true, false, false, false, false]);
   const [workoutsCompleted, setWorkoutsCompleted] = useState<number>(3); // days this week
-  const [workoutsGoal] = useState<number>(5);
+  const [workoutsGoal] = useState<number>(7);
   
   const [caloriesLogged, setCaloriesLogged] = useState<number>(1850);
   const [caloriesGoal, setCaloriesGoal] = useState<number>(2400);
@@ -79,6 +80,37 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
     { id: '3', time: '18:45', text: 'Treino de Força (Peito e Tríceps)', category: 'workout' }
   ]);
 
+  const getCurrentDayIndex = () => {
+    const day = new Date().getDay(); // 0 is Sunday, 1-6 are Mon-Sat
+    return day === 0 ? 6 : day - 1;
+  };
+
+  const toggleTrainedDay = (index: number) => {
+    const updated = [...trainedDays];
+    updated[index] = !updated[index];
+    setTrainedDays(updated);
+    
+    const count = updated.filter(Boolean).length;
+    setWorkoutsCompleted(count);
+
+    const daysOfWeek = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'];
+    const dayName = daysOfWeek[index];
+    const isChecked = updated[index];
+    
+    const newAct = {
+      id: Math.random().toString(),
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      text: isChecked 
+        ? `Marcou treino na ${dayName} como realizado!` 
+        : `Desmarcou treino na ${dayName}`,
+      category: 'workout' as const
+    };
+    const updatedActs = [newAct, ...activities];
+    setActivities(updatedActs);
+    
+    saveStats(waterLogged, count, caloriesLogged, protein, carbs, fats, weights, updatedActs, updated);
+  };
+
   // Read set goals or set defaults based on user objective
   useEffect(() => {
     // 1. Read cached values standard first
@@ -87,7 +119,11 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
       try {
         const data = JSON.parse(cachedStats);
         setWaterLogged(data.waterLogged ?? 1750);
-        setWorkoutsCompleted(data.workoutsCompleted ?? 3);
+        
+        const loadedTrainedDays = data.trainedDays ?? [true, true, true, false, false, false, false];
+        setTrainedDays(loadedTrainedDays);
+        setWorkoutsCompleted(loadedTrainedDays.filter(Boolean).length);
+
         setCaloriesLogged(data.caloriesLogged ?? 1850);
         setProtein(data.protein ?? 115);
         setCarbs(data.carbs ?? 180);
@@ -176,7 +212,8 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
     c: number, 
     f: number,
     wHistory = weights,
-    actList = activities
+    actList = activities,
+    tDays = trainedDays
   ) => {
     // A. Keep Local Storage cached for instant fluid speed
     safeStorage.setItem('vita_dashboard_stats', JSON.stringify({
@@ -187,7 +224,8 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
       carbs: c,
       fats: f,
       weights: wHistory,
-      activities: actList
+      activities: actList,
+      trainedDays: tDays
     }));
 
     // B. Push asynchronously to Supabase
@@ -292,21 +330,24 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
   };
 
   const addWorkoutLog = (type: string) => {
-    if (workoutsCompleted < 7) {
-      const updated = workoutsCompleted + 1;
-      setWorkoutsCompleted(updated);
-      
-      const newAct = {
-        id: Math.random().toString(),
-        time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        text: `Registrou treino: ${type}`,
-        category: 'workout' as const
-      };
-      const updatedActs = [newAct, ...activities];
-      setActivities(updatedActs);
-      saveStats(waterLogged, updated, caloriesLogged + 350, protein, carbs, fats, weights, updatedActs);
-      setCaloriesLogged(prev => prev + 350); // Burn activity allowance simulation
-    }
+    const dayIdx = getCurrentDayIndex();
+    const updatedTrainedDays = [...trainedDays];
+    updatedTrainedDays[dayIdx] = true;
+    setTrainedDays(updatedTrainedDays);
+    
+    const updatedCount = updatedTrainedDays.filter(Boolean).length;
+    setWorkoutsCompleted(updatedCount);
+    
+    const newAct = {
+      id: Math.random().toString(),
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      text: `Registrou treino: ${type}`,
+      category: 'workout' as const
+    };
+    const updatedActs = [newAct, ...activities];
+    setActivities(updatedActs);
+    saveStats(waterLogged, updatedCount, caloriesLogged + 350, protein, carbs, fats, weights, updatedActs, updatedTrainedDays);
+    setCaloriesLogged(prev => prev + 350); // Burn activity allowance simulation
   };
 
   const addMealLog = (cal: number, protValue: number, carbsValue: number, fatsValue: number, description: string) => {
@@ -360,6 +401,8 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
     setProtein(0);
     setCarbs(0);
     setFats(0);
+    const clearedTrainedDays = [false, false, false, false, false, false, false];
+    setTrainedDays(clearedTrainedDays);
     const clearedActs = [{
       id: Math.random().toString(),
       time: 'Agora',
@@ -367,7 +410,7 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
       category: 'workout' as const
     }];
     setActivities(clearedActs);
-    saveStats(0, 0, 0, 0, 0, 0, weights, clearedActs);
+    saveStats(0, 0, 0, 0, 0, 0, weights, clearedActs, clearedTrainedDays);
   };
 
   // Calculate percentages
@@ -439,80 +482,6 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
           </button>
         </div>
 
-        {/* SUPABASE SYNCHRONIZATION CONTROLLER PANEL */}
-        <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5 mb-6 shadow-md shadow-black/35">
-          <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2.5">
-            <div className="flex items-center gap-2">
-              <Cloud className="w-5 h-5 text-blue-500 animate-pulse" />
-              <span className="text-white text-xs font-black uppercase tracking-wider font-sans">Sincronização Supabase</span>
-            </div>
-            
-            {/* Sync Badge state */}
-            <div className="flex items-center gap-2">
-              {syncStatus === 'syncing' && (
-                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/15 animate-pulse">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  Sincronizando...
-                </span>
-              )}
-              {syncStatus === 'synced' && (
-                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/15">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  Nuvem Atualizada
-                </span>
-              )}
-              {syncStatus === 'error' && (
-                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full border border-red-500/15">
-                  Rede Inativa
-                </span>
-              )}
-              {syncStatus === 'idle' && (
-                <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-slate-400 bg-slate-950 px-2.5 py-1 rounded-full border border-slate-800">
-                  Pronto
-                </span>
-              )}
-            </div>
-          </div>
-
-          <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
-            Este aplicativo salva em cache localmente e sincroniza o seu histórico de pesos, refeições, lembretes e metas em nuvem no Supabase. Use o seu ID para carregar a sessão em outros dispositivos.
-          </p>
-
-          <div className="flex flex-col gap-3 bg-slate-950 p-3 rounded-xl border border-slate-800/80 mb-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[9px] font-mono font-bold uppercase text-slate-400 tracking-wider">Seu Código de Sincronização:</span>
-              <button 
-                onClick={copySyncIdToClipboard}
-                className="flex items-center gap-1 text-[10px] font-mono text-emerald-400 hover:text-emerald-300 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/10 transition-colors cursor-pointer"
-              >
-                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-emerald-400" />}
-                {copied ? 'Copiado!' : 'Copiar ID'}
-              </button>
-            </div>
-            <p className="text-[11px] font-mono text-slate-300 break-all select-all font-semibold leading-tight">{syncId || "Carregando..."}</p>
-          </div>
-
-          {/* Load external Sync ID */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Inserir ID de sincronização existente..."
-              value={customSyncIdInput}
-              onChange={(e) => setCustomSyncIdInput(e.target.value)}
-              className="bg-slate-950 py-2.5 px-3 rounded-lg border border-slate-800 text-[11px] text-white font-mono placeholder:text-slate-500 flex-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <button
-              onClick={handleManualSyncIdConnect}
-              disabled={syncStatus === 'syncing' || !customSyncIdInput.trim()}
-              className="bg-blue-600 disabled:bg-slate-800 disabled:text-slate-500 hover:bg-blue-500 py-2.5 px-4 rounded-lg text-white font-bold text-xs uppercase tracking-wider transition-colors whitespace-nowrap cursor-pointer"
-            >
-              Conectar e Carregar
-            </button>
-          </div>
-        </div>
-
-
-
         {/* CORE STATS Bento Grid */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           
@@ -559,38 +528,83 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
           </div>
 
           {/* Workout Adherence */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between col-span-2">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Dumbbell className="w-4 h-4 text-red-500" />
-                <span className="text-[11px] font-black tracking-widest text-slate-350 uppercase">Treinos Semanais (Frequência)</span>
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between col-span-2 shadow-lg">
+            <div className="flex flex-col mb-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Dumbbell className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-black tracking-widest text-slate-350 uppercase">Treinos Semanais (Frequência)</span>
+                </div>
+                <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/15">
+                  {workoutsCompleted} de 7 dias
+                </span>
               </div>
-              <span className="text-xs font-mono font-black text-rose-500">{workoutsCompleted} de {workoutsGoal} treinos</span>
+              <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                * Toque diretamente nos dias abaixo para marcar ou desmarcar os dias em que se exercitou.
+              </p>
             </div>
             
-            <div className="flex justify-between items-end h-20 gap-2 mt-4 mb-2">
+            <div className="grid grid-cols-7 h-20 gap-1.5 mt-3 mb-1">
               {[
-                { day: 'Seg', checked: workoutsCompleted >= 1, active: true },
-                { day: 'Ter', checked: workoutsCompleted >= 2, active: true },
-                { day: 'Qua', checked: workoutsCompleted >= 3, active: true },
-                { day: 'Qui', checked: workoutsCompleted >= 4, active: false },
-                { day: 'Sex', checked: workoutsCompleted >= 5, active: false },
-                { day: 'Sáb', checked: workoutsCompleted >= 6, active: false },
-                { day: 'Dom', checked: workoutsCompleted >= 7, active: false }
-              ].map((item, idx) => (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-1.5">
-                  <div className="w-full h-14 bg-slate-950 rounded-lg relative overflow-hidden border border-slate-850">
-                    <motion.div 
-                      initial={{ height: 0 }}
-                      animate={{ height: item.checked ? '100%' : '20%' }}
-                      className={`absolute bottom-0 inset-x-0 ${
-                        item.checked ? 'bg-gradient-to-t from-red-600 to-rose-500' : 'bg-slate-800/40'
-                      }`}
-                    />
-                  </div>
-                  <span className="text-[10px] font-black font-sans text-slate-400">{item.day}</span>
-                </div>
-              ))}
+                { label: 'Seg', desc: 'Segunda-feira' },
+                { label: 'Ter', desc: 'Terça-feira' },
+                { label: 'Qua', desc: 'Quarta-feira' },
+                { label: 'Qui', desc: 'Quinta-feira' },
+                { label: 'Sex', desc: 'Sexta-feira' },
+                { label: 'Sáb', desc: 'Sábado' },
+                { label: 'Dom', desc: 'Domingo' }
+              ].map((item, idx) => {
+                const isChecked = trainedDays[idx];
+                const isCurrentSelf = getCurrentDayIndex() === idx;
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => toggleTrainedDay(idx)}
+                    className="flex-1 flex flex-col items-center gap-1.5 focus:outline-none group relative cursor-pointer"
+                    title={`Marcar/Desmarcar Treino de ${item.desc}`}
+                  >
+                    <div className={`w-full h-11 rounded-xl relative overflow-hidden transition-all duration-300 border ${
+                      isChecked 
+                        ? 'bg-emerald-500/20 border-emerald-500/30' 
+                        : isCurrentSelf 
+                        ? 'bg-slate-900 border-blue-500/40'
+                        : 'bg-slate-950 border-slate-850 hover:border-slate-705'
+                    }`}>
+                      <motion.div 
+                        initial={{ height: 0 }}
+                        animate={{ height: isChecked ? '100%' : '0%' }}
+                        className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-emerald-500 to-teal-400"
+                        transition={{ type: 'spring', stiffness: 100, damping: 15 }}
+                      />
+                      
+                      {/* Check mark indicator overlay */}
+                      {isChecked && (
+                        <div className="absolute inset-0 flex items-center justify-center z-10">
+                          <Check className="w-3.5 h-3.5 text-slate-950 stroke-[3.5px]" />
+                        </div>
+                      )}
+
+                      {!isChecked && isCurrentSelf && (
+                        <div className="absolute inset-x-0 top-1.5 flex justify-center text-[7px] font-mono select-none text-blue-400 font-bold tracking-tight uppercase">
+                          Hoje
+                        </div>
+                      )}
+                    </div>
+                    
+                    <span className={`text-[10px] font-black font-sans uppercase tracking-wider transition-colors ${
+                      isChecked 
+                        ? 'text-emerald-400' 
+                        : isCurrentSelf 
+                        ? 'text-blue-400' 
+                        : 'text-slate-400'
+                    }`}>
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -713,121 +727,7 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
           </div>
         </div>
 
-        {/* WEIGHT EVOLUTION LINE GRAPH (Using pure SVG lines) */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-6">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
-            <h3 className="text-white text-sm font-black uppercase tracking-wider flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-500" />
-              Evolução do Peso Corporal
-            </h3>
-            <span className="text-[10px] font-mono text-slate-400">Sua jornada corporal</span>
-          </div>
 
-          {/* SVG Line Chart */}
-          <div className="w-full h-44 bg-slate-950 rounded-2xl p-4 border border-slate-800 relative mb-4 flex flex-col justify-between">
-            {/* Simple Grid Lines */}
-            <div className="absolute inset-x-0 top-1/4 h-[0.5px] bg-slate-900" />
-            <div className="absolute inset-x-0 top-2/4 h-[0.5px] bg-slate-900" />
-            <div className="absolute inset-x-0 top-3/4 h-[0.5px] bg-slate-900" />
-
-            {/* Line container */}
-            <div className="w-full flex-1 relative mt-1 block">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 400 120" preserveAspectRatio="none">
-                {/* SVG path calculated dynamically based on weights values */}
-                {weights.length > 1 && (
-                  <>
-                    <defs>
-                      <linearGradient id="gradient-chart" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.38"/>
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d={`M ${weights.map((w, index) => {
-                        const x = (index / (weights.length - 1)) * 400;
-                        const minVal = Math.min(...weights.map(item => item.value)) - 2;
-                        const maxVal = Math.max(...weights.map(item => item.value)) + 2;
-                        const range = maxVal - minVal;
-                        // Avoid infinity divide
-                        const y = 110 - ((w.value - minVal) / (range || 1)) * 95;
-                        return `${x},${y}`;
-                      }).join(' L ')}`}
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="3.5"
-                      strokeLinecap="round"
-                    />
-                    
-                    {/* Area under line */}
-                    <path
-                      d={`
-                        M 0,115
-                        L ${weights.map((w, index) => {
-                          const x = (index / (weights.length - 1)) * 400;
-                          const minVal = Math.min(...weights.map(item => item.value)) - 2;
-                          const maxVal = Math.max(...weights.map(item => item.value)) + 2;
-                          const range = maxVal - minVal;
-                          const y = 110 - ((w.value - minVal) / (range || 1)) * 95;
-                          return `${x},${y}`;
-                        }).join(' L ')}
-                        L 400,115
-                        Z
-                      `}
-                      fill="url(#gradient-chart)"
-                    />
-
-                    {/* Bullet nodes */}
-                    {weights.map((w, idx) => {
-                      const x = (idx / (weights.length - 1)) * 400;
-                      const minVal = Math.min(...weights.map(item => item.value)) - 2;
-                      const maxVal = Math.max(...weights.map(item => item.value)) + 2;
-                      const range = maxVal - minVal;
-                      const y = 110 - ((w.value - minVal) / (range || 1)) * 95;
-                      return (
-                        <g key={idx}>
-                          <circle cx={x} cy={y} r="5" fill="#3b82f6" stroke="#ffffff" strokeWidth="1.5" />
-                          <text x={x} y={y - 12} textAnchor="middle" fill="#ffffff" fontSize="8" fontWeight="bold">
-                            {w.value}kg
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </>
-                )}
-              </svg>
-            </div>
-
-            {/* Labels under graph */}
-            <div className="flex justify-between text-[10px] font-bold tracking-widest font-mono text-slate-500 mt-2 px-1 border-t border-slate-900/60 pt-2">
-              {weights.map((w, idx) => (
-                <span key={idx}>{w.date}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Add weight input */}
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input 
-                type="number" 
-                placeholder="Ex: 81.2"
-                step="0.1"
-                value={newWeight}
-                onChange={(e) => setNewWeight(e.target.value)}
-                id="input-quick-dash-weight"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-3 text-white text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">KG</span>
-            </div>
-            <button
-              onClick={registerWeight}
-              id="btn-registra-peso-dash"
-              className="bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs px-4 rounded-xl cursor-pointer active:scale-95 transition-all uppercase"
-            >
-              Registrar
-            </button>
-          </div>
-        </div>
 
         {/* DAILY LOG TIMELINE QUEUE HISTORY */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 mb-8">
