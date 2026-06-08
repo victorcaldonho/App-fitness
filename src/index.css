@@ -12,3 +12,23 @@ body {
   color: #ffffff;
   font-family: var(--font-sans);
 }
+
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    z-index: 99999;
+    background: white !important;
+    color: black !important;
+  }
+}

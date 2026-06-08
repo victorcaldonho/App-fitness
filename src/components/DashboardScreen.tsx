@@ -20,7 +20,10 @@ import {
   Cloud,
   Check,
   Copy,
-  RefreshCw
+  RefreshCw,
+  Printer,
+  FileText,
+  X
 } from 'lucide-react';
 import { ScreenType, ObjectiveType } from '../types';
 import { safeStorage } from '../safeStorage';
@@ -769,6 +772,7 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
         </div>
 
       </div>
+
     </div>
   );
 }
