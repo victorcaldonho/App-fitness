@@ -173,15 +173,15 @@ export default function TreinosScreen({
 
       // Initialize defaults
       let cachedStats: any = {
-        waterLogged: 1750,
-        workoutsCompleted: 3,
-        caloriesLogged: 1850,
-        protein: 115,
-        carbs: 180,
-        fats: 55,
+        waterLogged: 0,
+        workoutsCompleted: 0,
+        caloriesLogged: 0,
+        protein: 0,
+        carbs: 0,
+        fats: 0,
         weights: [],
         activities: [],
-        trainedDays: [true, true, true, false, false, false, false]
+        trainedDays: [false, false, false, false, false, false, false]
       };
 
       const localStr = safeStorage.getItem('vita_dashboard_stats');
@@ -203,7 +203,7 @@ export default function TreinosScreen({
       
       const newTrainedDays = Array.isArray(cachedStats.trainedDays) 
         ? [...cachedStats.trainedDays] 
-        : [true, true, true, false, false, false, false];
+        : [false, false, false, false, false, false, false];
       
       newTrainedDays[currentDayIdx] = true;
       const updatedWorkouts = newTrainedDays.filter(Boolean).length;
@@ -230,17 +230,17 @@ export default function TreinosScreen({
       if (activeUserId) {
         await Promise.all([
           syncDashboardStats(activeUserId, {
-            waterLogged: cachedStats.waterLogged ?? 1750,
+            waterLogged: cachedStats.waterLogged ?? 0,
             waterGoal: 3200,
             workoutsCompleted: updatedWorkouts,
             workoutsGoal: 5,
-            caloriesLogged: cachedStats.caloriesLogged ?? 1850,
+            caloriesLogged: cachedStats.caloriesLogged ?? 0,
             caloriesGoal: 2400,
-            protein: cachedStats.protein ?? 115,
+            protein: cachedStats.protein ?? 0,
             proteinGoal: 160,
-            carbs: cachedStats.carbs ?? 180,
+            carbs: cachedStats.carbs ?? 0,
             carbsGoal: 250,
-            fats: cachedStats.fats ?? 55,
+            fats: cachedStats.fats ?? 0,
             fatsGoal: 80
           }),
           syncActivities(activeUserId, updatedActs.map(act => ({
@@ -635,7 +635,7 @@ export default function TreinosScreen({
               <h2 className="text-white text-3xl font-black tracking-tight font-sans mb-3">PARABÉNS, ATLETA!</h2>
               
               <p className="text-slate-300 text-sm max-w-sm mb-6 leading-relaxed">
-                O seu treino foi salvo em cache local e sincronizado automaticamente na nuvem do seu perfil <span className="text-blue-400 font-black font-mono">SUPABASE</span> do aplicativo.
+                O seu treino foi salvo no aplicativo.
               </p>
 
               <div className="flex flex-col gap-3.5 w-full">

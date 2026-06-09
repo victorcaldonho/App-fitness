@@ -1,12 +1,20 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Calculator, Dumbbell, Flame, Apple, ChevronRight, Zap, Bell, BarChart3 } from 'lucide-react';
 import { ScreenType } from '../types';
+import { safeStorage } from '../safeStorage';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenType) => void;
 }
 
 export default function HomeScreen({ onNavigate }: HomeScreenProps) {
+  const [userName, setUserName] = useState<string>('');
+
+  useEffect(() => {
+    setUserName(safeStorage.getItem('vita_user_name') || 'Atleta');
+  }, []);
+
   // Stagger animation container
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -45,6 +53,18 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
       <div className="relative z-10 bg-slate-950 rounded-t-[35px] -mt-[60px] px-6 pt-8 pb-12 flex-1 max-w-2xl mx-auto w-full">
         {/* Drag Indicator Mimic */}
         <div className="w-10 h-1 bg-slate-800 rounded-full mx-auto mb-8" />
+
+        {/* PERSONALIZED USER GREETING */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8 bg-slate-900/60 border border-slate-800/80 rounded-2xl py-3 px-5 max-w-xs mx-auto shadow-md"
+        >
+          <p className="text-[10.5px] font-mono font-bold text-blue-400 uppercase tracking-widest leading-none">Bem-vindo de volta</p>
+          <h3 className="text-white text-base font-black tracking-tight mt-1.5">
+            Olá, <span className="text-blue-500 font-extrabold">{userName}</span>!
+          </h3>
+        </motion.div>
 
         {/* BRAND IDENTITY */}
         <motion.div 

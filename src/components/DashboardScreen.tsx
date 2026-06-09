@@ -42,32 +42,26 @@ interface DashboardScreenProps {
 
 export default function DashboardScreen({ onNavigate, objective }: DashboardScreenProps) {
   // Stats state (persisted or simulated)
-  const [waterLogged, setWaterLogged] = useState<number>(1750); // ml
+  const [waterLogged, setWaterLogged] = useState<number>(0); // ml
   const [waterGoal, setWaterGoal] = useState<number>(3000); // ml
   
-  const [trainedDays, setTrainedDays] = useState<boolean[]>([true, true, true, false, false, false, false]);
-  const [workoutsCompleted, setWorkoutsCompleted] = useState<number>(3); // days this week
+  const [trainedDays, setTrainedDays] = useState<boolean[]>([false, false, false, false, false, false, false]);
+  const [workoutsCompleted, setWorkoutsCompleted] = useState<number>(0); // days this week
   const [workoutsGoal] = useState<number>(7);
   
-  const [caloriesLogged, setCaloriesLogged] = useState<number>(1850);
+  const [caloriesLogged, setCaloriesLogged] = useState<number>(0);
   const [caloriesGoal, setCaloriesGoal] = useState<number>(2400);
   
   // Macronutrients (g)
-  const [protein, setProtein] = useState<number>(115);
+  const [protein, setProtein] = useState<number>(0);
   const [proteinGoal, setProteinGoal] = useState<number>(160);
-  const [carbs, setCarbs] = useState<number>(180);
+  const [carbs, setCarbs] = useState<number>(0);
   const [carbsGoal, setCarbsGoal] = useState<number>(250);
-  const [fats, setFats] = useState<number>(55);
+  const [fats, setFats] = useState<number>(0);
   const [fatsGoal, setFatsGoal] = useState<number>(80);
 
   // Weight History
-  const [weights, setWeights] = useState<{ date: string; value: number }[]>([
-    { date: 'Jan', value: 84.5 },
-    { date: 'Fev', value: 83.8 },
-    { date: 'Mar', value: 83.1 },
-    { date: 'Abr', value: 82.3 },
-    { date: 'Mai', value: 81.5 }
-  ]);
+  const [weights, setWeights] = useState<{ date: string; value: number }[]>([]);
   const [newWeight, setNewWeight] = useState<string>('');
 
   // Supabase Sync states
@@ -77,11 +71,7 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
   const [copied, setCopied] = useState<boolean>(false);
 
   // Daily log activities
-  const [activities, setActivities] = useState<{ id: string; time: string; text: string; category: 'workout' | 'meal' | 'water' }[]>([
-    { id: '1', time: '08:15', text: 'Copo d\'água de 350ml extraído', category: 'water' },
-    { id: '2', time: '13:00', text: 'Refeição de Almoço de Alta Proteína', category: 'meal' },
-    { id: '3', time: '18:45', text: 'Treino de Força (Peito e Tríceps)', category: 'workout' }
-  ]);
+  const [activities, setActivities] = useState<{ id: string; time: string; text: string; category: 'workout' | 'meal' | 'water' }[]>([]);
 
   const getCurrentDayIndex = () => {
     const day = new Date().getDay(); // 0 is Sunday, 1-6 are Mon-Sat
@@ -121,16 +111,16 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
     if (cachedStats) {
       try {
         const data = JSON.parse(cachedStats);
-        setWaterLogged(data.waterLogged ?? 1750);
+        setWaterLogged(data.waterLogged ?? 0);
         
-        const loadedTrainedDays = data.trainedDays ?? [true, true, true, false, false, false, false];
+        const loadedTrainedDays = data.trainedDays ?? [false, false, false, false, false, false, false];
         setTrainedDays(loadedTrainedDays);
         setWorkoutsCompleted(loadedTrainedDays.filter(Boolean).length);
 
-        setCaloriesLogged(data.caloriesLogged ?? 1850);
-        setProtein(data.protein ?? 115);
-        setCarbs(data.carbs ?? 180);
-        setFats(data.fats ?? 55);
+        setCaloriesLogged(data.caloriesLogged ?? 0);
+        setProtein(data.protein ?? 0);
+        setCarbs(data.carbs ?? 0);
+        setFats(data.fats ?? 0);
         if (data.weights) setWeights(data.weights);
         if (data.activities) setActivities(data.activities);
       } catch (e) {
@@ -148,16 +138,16 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
       .then((res) => {
         if (res.success) {
           if (res.dashboard) {
-            setWaterLogged(res.dashboard.water_logged ?? 1750);
+            setWaterLogged(res.dashboard.water_logged ?? 0);
             setWaterGoal(res.dashboard.water_goal ?? 3200);
-            setWorkoutsCompleted(res.dashboard.workouts_completed ?? 3);
-            setCaloriesLogged(res.dashboard.calories_logged ?? 1850);
+            setWorkoutsCompleted(res.dashboard.workouts_completed ?? 0);
+            setCaloriesLogged(res.dashboard.calories_logged ?? 0);
             setCaloriesGoal(res.dashboard.calories_goal ?? 2400);
-            setProtein(res.dashboard.protein ?? 115);
+            setProtein(res.dashboard.protein ?? 0);
             setProteinGoal(res.dashboard.protein_goal ?? 160);
-            setCarbs(res.dashboard.carbs ?? 180);
+            setCarbs(res.dashboard.carbs ?? 0);
             setCarbsGoal(res.dashboard.carbs_goal ?? 250);
-            setFats(res.dashboard.fats ?? 55);
+            setFats(res.dashboard.fats ?? 0);
             setFatsGoal(res.dashboard.fats_goal ?? 80);
           }
           if (res.weights && res.weights.length > 0) {
@@ -460,6 +450,9 @@ export default function DashboardScreen({ onNavigate, objective }: DashboardScre
         {/* HEADER BRAND TITLE */}
         <div className="flex justify-between items-start mb-6">
           <div>
+            <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded border border-blue-500/15 uppercase tracking-widest mb-2 inline-block">
+              Atleta: {safeStorage.getItem('vita_user_name') || 'ATLETA Vita'}
+            </span>
             <h2 className="text-white text-2xl font-black font-sans tracking-tight">DASHBOARD DE ALTA PERFORMANCE</h2>
             <p className="text-slate-450 text-xs mt-0.5 leading-relaxed">
               Consistência metabólica, hidratação e constância do treino num só painel inteligente.

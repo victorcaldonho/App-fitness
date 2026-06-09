@@ -1,12 +1,22 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { ScreenType } from '../types';
 import { ArrowRight, Flame } from 'lucide-react';
+import { safeStorage } from '../safeStorage';
 
 interface WelcomeScreenProps {
   onNavigate: (screen: ScreenType) => void;
 }
 
 export default function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
+  const [userName, setUserName] = useState<string>(() => safeStorage.getItem('vita_user_name') || '');
+
+  const handleStart = () => {
+    const trimmed = userName.trim();
+    safeStorage.setItem('vita_user_name', trimmed || 'Atleta');
+    onNavigate('home');
+  };
+
   return (
     <div className="relative w-full h-[85vh] sm:h-[780px] rounded-[38px] overflow-hidden bg-slate-950 flex flex-col justify-end p-6 md:p-8 select-none">
       
@@ -61,13 +71,35 @@ export default function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6, type: 'spring' }}
-          className="text-white text-4xl sm:text-5xl font-black font-sans leading-tight tracking-tight text-center max-w-[340px] mb-8 select-none"
+          className="text-white text-4xl sm:text-5xl font-black font-sans leading-tight tracking-tight text-center max-w-[340px] mb-6 select-none"
           style={{ textShadow: '0 4px 18px rgba(0, 0, 0, 0.75)' }}
         >
           Descubra como<br />
           moldar o seu<br />
           corpo
         </motion.h1>
+
+        {/* Name input field */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35, duration: 0.6 }}
+          className="w-full mb-6"
+        >
+          <label className="block text-[10px] text-white/85 font-black uppercase tracking-widest mb-2 text-center font-mono">
+            COMO DEVEMOS TE CHAMAR?
+          </label>
+          <input
+            type="text"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
+            placeholder="Digite seu nome (Sem e-mail ou senha)"
+            className="w-full bg-slate-900/90 border border-white/10 focus:border-blue-500 text-white rounded-full py-3.5 px-6 text-sm text-center font-bold tracking-wide placeholder-slate-600 focus:outline-none transition-all focus:ring-1 focus:ring-blue-500 shadow-xl"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleStart();
+            }}
+          />
+        </motion.div>
 
         {/* GET STARTED PILL BUTTON from user image */}
         <motion.button
@@ -76,7 +108,7 @@ export default function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
           whileHover={{ scale: 1.03, boxShadow: '0 8px 24px rgba(37, 99, 235, 0.4)' }}
           whileTap={{ scale: 0.97 }}
           transition={{ delay: 0.4, type: 'spring', stiffness: 150 }}
-          onClick={() => onNavigate('home')}
+          onClick={handleStart}
           className="relative group w-full py-4.5 rounded-full bg-blue-600 text-white font-sans font-black tracking-widest text-xs uppercase shadow-xl hover:bg-blue-500 transition-colors cursor-pointer flex items-center justify-center gap-2"
         >
           <span>COMEÇAR • GET STARTED</span>

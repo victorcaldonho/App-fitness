@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, Salad, Flame, Leaf, Shield, CheckCircle2, ChevronRight, Apple, Heart, Activity } from 'lucide-react';
 import { ScreenType, ObjectiveType } from '../types';
+import { safeStorage } from '../safeStorage';
+import { syncDashboardStats, syncActivities } from '../supabaseClient';
 
 interface DietaScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -11,7 +13,17 @@ interface DietaScreenProps {
 
 export default function DietaScreen({ onNavigate, objective, setObjective }: DietaScreenProps) {
   // Store eaten meals or items
-  const [eatenMeals, setEatenMeals] = useState<{ [key: string]: boolean }>({});
+  const [eatenMeals, setEatenMeals] = useState<{ [key: string]: boolean }>(() => {
+    const cached = safeStorage.getItem('vita_eaten_meals');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return {};
+  });
 
   // --- DIETS DATABASE (Color psychology matching exact request) ---
   const dietas: { [key: string]: { titulo: string; cor: string; rgbBg: string; textCor: string; info: string; refeicoes: { id: string; nome: string; itens: string[] }[] } } = {
@@ -66,11 +78,136 @@ export default function DietaScreen({ onNavigate, objective, setObjective }: Die
 
   const activeDieta = objective ? dietas[objective] : null;
 
-  const handleToggleMealItem = (key: string) => {
-    setEatenMeals(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+  const NUTRIENT_MAP: { [key: string]: { cal: number; protein: number; carbs: number; fats: number } } = {
+    // PERDER PESO
+    'Omelete de 2 ovos com espinafre': { cal: 150, protein: 13, carbs: 2, fats: 10 },
+    '1 xícara de café preto (sem açúcar)': { cal: 5, protein: 0, carbs: 0, fats: 0 },
+    '50g de mamão com sementes de chia': { cal: 45, protein: 1, carbs: 10, fats: 1 },
+    '150g de Filé de frango grelhado': { cal: 240, protein: 45, carbs: 0, fats: 5 },
+    '3 colheres de arroz integral': { cal: 110, protein: 2.5, carbs: 23, fats: 1 },
+    'Salada verde à vontade': { cal: 15, protein: 1, carbs: 3, fats: 0 },
+    'Brócolis no vapor': { cal: 35, protein: 3, carbs: 6, fats: 0 },
+    '1 Iogurte natural desnatado': { cal: 60, protein: 6, carbs: 9, fats: 0 },
+    '3 nozes ou 5 amêndoas': { cal: 90, protein: 2, carbs: 2, fats: 8 },
+    'Posta de peixe branco': { cal: 150, protein: 30, carbs: 0, fats: 3 },
+    'Mix de legumes (abobrinha e cenoura)': { cal: 50, protein: 1.5, carbs: 10, fats: 0.5 },
+    'Salada de folhas roxas': { cal: 15, protein: 1, carbs: 3, fats: 0 },
+
+    // GANHAR MASSA
+    'Vitamina: 300ml leite, 1 banana, 40g aveia': { cal: 350, protein: 15, carbs: 58, fats: 7 },
+    '2 fatias de pão integral com ovos': { cal: 280, protein: 18, carbs: 24, fats: 12 },
+    '200g de Carne bovina magra': { cal: 380, protein: 50, carbs: 0, fats: 18 },
+    '200g de Arroz branco': { cal: 260, protein: 5, carbs: 57, fats: 0.5 },
+    '100g de Feijão': { cal: 95, protein: 6, carbs: 17, fats: 0.5 },
+    'Salada de tomate': { cal: 25, protein: 1, carbs: 5, fats: 0.2 },
+    'Shake de Whey Protein': { cal: 140, protein: 25, carbs: 3, fats: 2 },
+    '60g de Dextrose ou 1 banana grande': { cal: 240, protein: 1, carbs: 58, fats: 0 },
+    '200g de Macarrão integral': { cal: 250, protein: 10, carbs: 50, fats: 1.5 },
+    'Molho de tomate caseiro com frango desfiado': { cal: 180, protein: 25, carbs: 8, fats: 4 },
+
+    // HIPERTROFIA
+    '4 Claras e 2 ovos inteiros': { cal: 225, protein: 26, carbs: 2, fats: 12 },
+    '80g de Aveia em flocos': { cal: 300, protein: 11, carbs: 52, fats: 6 },
+    'Frutas vermelhas': { cal: 50, protein: 1, carbs: 11, fats: 0.5 },
+    '180g de Frango ou Peixe': { cal: 290, protein: 54, carbs: 0, fats: 6 },
+    '150g de Batata Doce': { cal: 130, protein: 2, carbs: 30, fats: 0.2 },
+    'Aspargos ou Vagem': { cal: 30, protein: 2, carbs: 5, fats: 0.1 },
+    'Sanduíche de atum natural': { cal: 250, protein: 20, carbs: 25, fats: 5 },
+    'Pasta de amendoim (1 colher)': { cal: 95, protein: 3.5, carbs: 3, fats: 8 },
+    'Abacate (100g)': { cal: 160, protein: 2, carbs: 9, fats: 15 },
+    'Proteína de lenta absorção (Caseína ou Ovos)': { cal: 120, protein: 24, carbs: 1, fats: 1.5 }
+  };
+
+  const handleToggleMealItem = (key: string, itemName: string, mealName: string) => {
+    const isNowDone = !eatenMeals[key];
+    
+    // 1. Update eatenMeals state
+    const updatedMeals = {
+      ...eatenMeals,
+      [key]: isNowDone
+    };
+    setEatenMeals(updatedMeals);
+    safeStorage.setItem('vita_eaten_meals', JSON.stringify(updatedMeals));
+
+    // 2. Load current dashboard stats
+    const cachedStatsStr = safeStorage.getItem('vita_dashboard_stats');
+    let cachedStats: any = {
+      waterLogged: 0,
+      workoutsCompleted: 0,
+      caloriesLogged: 0,
+      protein: 0,
+      carbs: 0,
+      fats: 0,
+      weights: [],
+      activities: [],
+      trainedDays: [false, false, false, false, false, false, false]
+    };
+
+    if (cachedStatsStr) {
+      try {
+        cachedStats = { ...cachedStats, ...JSON.parse(cachedStatsStr) };
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // 3. Find macronutrients for the item
+    const nutrition = NUTRIENT_MAP[itemName] || { cal: 150, protein: 12, carbs: 15, fats: 4 };
+
+    // 4. Edit stats depending on whether it was checked or unchecked
+    const multiplier = isNowDone ? 1 : -1;
+    
+    cachedStats.caloriesLogged = Math.max(0, (cachedStats.caloriesLogged || 0) + (nutrition.cal * multiplier));
+    cachedStats.protein = Math.max(0, (cachedStats.protein || 0) + (nutrition.protein * multiplier));
+    cachedStats.carbs = Math.max(0, (cachedStats.carbs || 0) + (nutrition.carbs * multiplier));
+    cachedStats.fats = Math.max(0, (cachedStats.fats || 0) + (nutrition.fats * multiplier));
+
+    // 5. Add a timeline action log
+    const timeNow = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const actionText = isNowDone
+      ? `Ingeriu: ${itemName} (${mealName})`
+      : `Desmarcou refeição: ${itemName} (${mealName})`;
+    
+    const newAct = {
+      id: Math.random().toString(),
+      time: timeNow,
+      text: actionText,
+      category: 'meal' as const
+    };
+    
+    cachedStats.activities = [newAct, ...(cachedStats.activities || [])];
+
+    // 6. Save back to localStorage
+    safeStorage.setItem('vita_dashboard_stats', JSON.stringify(cachedStats));
+
+    // 7. Sync back to Supabase
+    const activeUserId = safeStorage.getItem('vita_supabase_sync_id');
+    if (activeUserId) {
+      const goalsDict = {
+        'PERDER PESO': { caloriesGoal: 2000, waterGoal: 3200, proteinGoal: 150, carbsGoal: 180, fatsGoal: 60 },
+        'GANHAR MASSA': { caloriesGoal: 3100, waterGoal: 4000, proteinGoal: 180, carbsGoal: 400, fatsGoal: 90 },
+        'HIPERTROFIA': { caloriesGoal: 2700, waterGoal: 3800, proteinGoal: 200, carbsGoal: 310, fatsGoal: 75 }
+      };
+      const activeObj = objective || 'PERDER PESO';
+      const activeGoals = goalsDict[activeObj as keyof typeof goalsDict] || { caloriesGoal: 2400, waterGoal: 3000, proteinGoal: 160, carbsGoal: 250, fatsGoal: 80 };
+
+      syncDashboardStats(activeUserId, {
+        waterLogged: cachedStats.waterLogged ?? 0,
+        waterGoal: activeGoals.waterGoal,
+        workoutsCompleted: cachedStats.workoutsCompleted ?? 0,
+        workoutsGoal: 7,
+        caloriesLogged: cachedStats.caloriesLogged,
+        caloriesGoal: activeGoals.caloriesGoal,
+        protein: cachedStats.protein,
+        proteinGoal: activeGoals.proteinGoal,
+        carbs: cachedStats.carbs,
+        carbsGoal: activeGoals.carbsGoal,
+        fats: cachedStats.fats,
+        fatsGoal: activeGoals.fatsGoal
+      }).catch(err => console.error('Error syncing diet to Supabase:', err));
+
+      syncActivities(activeUserId, cachedStats.activities).catch(err => console.error('Error syncing diet activities to Supabase:', err));
+    }
   };
 
   return (
@@ -241,7 +378,7 @@ export default function DietaScreen({ onNavigate, objective, setObjective }: Die
                           return (
                             <div
                               key={index}
-                              onClick={() => handleToggleMealItem(itemKey)}
+                              onClick={() => handleToggleMealItem(itemKey, item, ref.nome)}
                               id={`meal-row-${ref.id}-${index}`}
                               className={`flex items-start gap-3 p-3 rounded-xl transition-all cursor-pointer border ${
                                 isDone 
