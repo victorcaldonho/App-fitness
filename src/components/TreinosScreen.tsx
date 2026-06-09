@@ -13,11 +13,15 @@ import {
   TrendingUp,
   Award,
   Zap,
-  Activity
+  Activity,
+  Eye,
+  Info,
+  HelpCircle
 } from 'lucide-react';
 import { ScreenType, ObjectiveType, WorkoutType } from '../types';
 import { safeStorage } from '../safeStorage';
 import { getOrCreateUserId, syncDashboardStats, syncActivities } from '../supabaseClient';
+import { EXERCISE_DEMO_DATABASE, getGenericExerciseDemo } from '../data/demonstrations';
 
 interface TreinosScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -42,6 +46,7 @@ export default function TreinosScreen({
   
   const [selectedTreino, setSelectedTreino] = useState<'A' | 'B' | 'C' | null>(null);
   const [completedExercises, setCompletedExercises] = useState<{ [key: string]: boolean }>({});
+  const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
@@ -133,6 +138,10 @@ export default function TreinosScreen({
   };
 
   const activeExercises = getExercisesForSplit(objective, selectedTreino || 'A');
+
+  useEffect(() => {
+    setExpandedExercise(null);
+  }, [selectedTreino, objective]);
 
   // Toggle singular exercise
   const handleToggleExercise = (index: number) => {
@@ -504,6 +513,8 @@ export default function TreinosScreen({
                 {activeExercises.map((ex, index) => {
                   const key = `${objective}-${selectedTreino}-${index}`;
                   const isDone = !!completedExercises[key];
+                  const isExpanded = expandedExercise === index;
+                  const demo = EXERCISE_DEMO_DATABASE[ex.name] || getGenericExerciseDemo(ex.name);
 
                   return (
                     <motion.div
@@ -512,67 +523,138 @@ export default function TreinosScreen({
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
                       id={`exercise-card-${index}`}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4.5 rounded-2xl border transition-all ${
+                      className={`flex flex-col rounded-2xl border transition-all ${
                         isDone 
                           ? 'bg-slate-950/40 border-emerald-500/20 text-slate-500 shadow-inner' 
-                          : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-100 shadow-md'
+                          : isExpanded
+                          ? 'bg-slate-900 border-blue-500/40 text-slate-100 shadow-lg ring-1 ring-blue-500/10'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-705 border-slate-800 text-slate-100 shadow-md'
                       }`}
                     >
-                      {/* Exercise Name and Muscles */}
-                      <div className="flex-1 flex flex-col min-w-0 pr-2">
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                          <span className={`text-[9px] font-mono font-bold tracking-widest px-2 py-0.5 rounded uppercase ${
-                            isDone 
-                              ? 'bg-slate-900 text-slate-600 border border-slate-850' 
-                              : ex.muscleGroup === 'PEITO' 
-                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15'
-                              : ex.muscleGroup === 'OMBROS'
-                              ? 'bg-sky-500/10 text-sky-400 border border-sky-500/15'
-                              : ex.muscleGroup === 'TRÍCEPS'
-                              ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/15'
-                              : ex.muscleGroup === 'COSTAS'
-                              ? 'bg-violet-500/10 text-violet-400 border border-violet-500/15'
-                              : ex.muscleGroup === 'BÍCEPS'
-                              ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/15'
-                              : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15'
-                          }`}>
-                            {ex.muscleGroup}
-                          </span>
+                      {/* Main Card Header Controls */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4.5">
+                        {/* Exercise Name and Muscles */}
+                        <div className="flex-1 flex flex-col min-w-0 pr-2">
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span className={`text-[9px] font-mono font-bold tracking-widest px-2 py-0.5 rounded uppercase ${
+                              isDone 
+                                ? 'bg-slate-900 text-slate-600 border border-slate-850' 
+                                : ex.muscleGroup === 'PEITO' 
+                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/15'
+                                : ex.muscleGroup === 'OMBROS'
+                                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/15'
+                                : ex.muscleGroup === 'TRÍCEPS'
+                                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/15'
+                                : ex.muscleGroup === 'COSTAS'
+                                ? 'bg-violet-500/10 text-violet-400 border border-violet-500/15'
+                                : ex.muscleGroup === 'BÍCEPS'
+                                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/15'
+                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15'
+                            }`}>
+                              {ex.muscleGroup}
+                            </span>
 
-                          <span className={`text-[9px] font-mono font-bold uppercase ${
-                            isDone ? 'text-slate-600' : 'text-amber-500 font-extrabold'
-                          }`}>
-                            ORIENTAÇÃO: 3x12
-                          </span>
+                            <span className={`text-[9px] font-mono font-bold uppercase ${
+                              isDone ? 'text-slate-600' : 'text-amber-500 font-extrabold'
+                            }`}>
+                              ORIENTAÇÃO: 3x12
+                            </span>
+
+                            {/* EXCELENT GUIDE EXPANDABLE LINK POINTER TRIGGER */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedExercise(isExpanded ? null : index);
+                              }}
+                              className={`text-[9px] font-mono font-black uppercase tracking-wider px-2 py-0.5 rounded border flex items-center gap-1 transition-all cursor-pointer ${
+                                isExpanded
+                                  ? 'bg-blue-600 text-white border-blue-500'
+                                  : 'bg-slate-950 text-blue-400 border-blue-500/20 hover:border-blue-500/40'
+                              }`}
+                            >
+                              <Eye className="w-3 h-3" />
+                              {isExpanded ? 'Ocultar Guia' : 'Como Executar?'}
+                            </button>
+                          </div>
+                          <h4 className={`text-[15px] font-black leading-snug font-sans tracking-tight break-words ${isDone ? 'line-through text-slate-500 font-medium' : 'text-white'}`}>
+                            {ex.name}
+                          </h4>
                         </div>
-                        <h4 className={`text-[15px] font-black leading-snug font-sans tracking-tight break-words ${isDone ? 'line-through text-slate-500 font-medium' : 'text-white'}`}>
-                          {ex.name}
-                        </h4>
+
+                        {/* SIDE RECTANGULAR ACTION BUTTON TO CONFIRM DETECTED */}
+                        <div>
+                          <button
+                            onClick={() => handleToggleExercise(index)}
+                            className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-sans font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all ${
+                              isDone 
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 text-[10px] font-bold' 
+                                : 'bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white'
+                            }`}
+                          >
+                            {isDone ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 stroke-[3px]" />
+                                <span>Executado ✓</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
+                                <span>Confirmar</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
-                      {/* SIDE RECTANGULAR ACTION BUTTON TO CONFIRM DETECTED */}
-                      <div>
-                        <button
-                          onClick={() => handleToggleExercise(index)}
-                          className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-sans font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all ${
-                            isDone 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 text-[10px] font-bold' 
-                              : 'bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white'
-                          }`}
-                        >
-                          {isDone ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 stroke-[3px]" />
-                              <span>Executado ✓</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-3 h-3 text-blue-500 fill-blue-500" />
-                              <span>Confirmar</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      {/* EXPANDED INTERACTIVE DEMONSTRATION BOX */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.18, ease: 'easeInOut' }}
+                            className="overflow-hidden border-t border-slate-800/80 bg-slate-950/45 rounded-b-2xl"
+                          >
+                            <div className="p-4.5 space-y-4 text-xs font-sans text-slate-300">
+                              {/* Step by step execution directions */}
+                              <div className="space-y-2">
+                                <h5 className="font-extrabold text-blue-400 uppercase tracking-widest font-mono text-[10px] flex items-center gap-1.5">
+                                  <HelpCircle className="w-3.5 h-3.5 text-blue-400" /> Modo de Execução:
+                                </h5>
+                                <ol className="list-decimal list-inside space-y-1.5 pl-0.5">
+                                  {demo.execution.map((step, sIdx) => (
+                                    <li key={sIdx} className="leading-relaxed text-slate-350">
+                                      <span className="text-slate-200">{step}</span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+
+                              {/* Coach insights grid */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-900/80">
+                                <div className="bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/40">
+                                  <span className="font-mono font-black text-[9px] text-amber-500 tracking-wider uppercase block mb-1">
+                                    💡 DICA DE ELITE:
+                                  </span>
+                                  <p className="text-slate-400 text-[11px] leading-relaxed">
+                                    {demo.proTip}
+                                  </p>
+                                </div>
+                                <div className="bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/40">
+                                  <span className="font-mono font-black text-[9px] text-cyan-400 tracking-wider uppercase block mb-1">
+                                    🫁 TÉCNICA DE RESPIRAÇÃO:
+                                  </span>
+                                  <p className="text-slate-400 text-[11px] leading-relaxed">
+                                    {demo.breathing}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
                   );
                 })}

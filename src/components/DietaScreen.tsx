@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, Salad, Flame, Leaf, Shield, CheckCircle2, ChevronRight, Apple, Heart, Activity } from 'lucide-react';
+import { ChevronLeft, Salad, Flame, Leaf, Shield, CheckCircle2, ChevronRight, Apple, Heart, Activity, BookOpen, ChefHat, X } from 'lucide-react';
 import { ScreenType, ObjectiveType } from '../types';
 import { safeStorage } from '../safeStorage';
 import { syncDashboardStats, syncActivities } from '../supabaseClient';
+import { RECIPE_DATABASE, getGenericRecipe } from '../data/demonstrations';
 
 interface DietaScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -24,6 +25,8 @@ export default function DietaScreen({ onNavigate, objective, setObjective }: Die
     }
     return {};
   });
+
+  const [selectedRecipeItem, setSelectedRecipeItem] = useState<string | null>(null);
 
   // --- DIETS DATABASE (Color psychology matching exact request) ---
   const dietas: { [key: string]: { titulo: string; cor: string; rgbBg: string; textCor: string; info: string; refeicoes: { id: string; nome: string; itens: string[] }[] } } = {
@@ -380,22 +383,40 @@ export default function DietaScreen({ onNavigate, objective, setObjective }: Die
                               key={index}
                               onClick={() => handleToggleMealItem(itemKey, item, ref.nome)}
                               id={`meal-row-${ref.id}-${index}`}
-                              className={`flex items-start gap-3 p-3 rounded-xl transition-all cursor-pointer border ${
+                              className={`flex items-center justify-between gap-3 p-3 rounded-xl transition-all cursor-pointer border ${
                                 isDone 
                                   ? 'bg-emerald-950/10 border-emerald-500/10 text-slate-500 line-through' 
                                   : 'bg-slate-950 hover:bg-slate-950/80 border-slate-800 text-slate-300'
                               }`}
                             >
-                              <input
-                                type="checkbox"
-                                checked={isDone}
-                                onChange={() => {}} // Hooked on container div click
-                                className="w-4 h-4 rounded cursor-pointer mt-0.5 pointer-events-none"
-                                style={{ accentColor: activeDieta.cor }}
-                              />
-                              <span className="text-xs font-medium leading-relaxed flex-1">
-                                {item}
-                              </span>
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isDone}
+                                  onChange={() => {}} // Hooked on container div click
+                                  className="w-4 h-4 rounded cursor-pointer mt-0.5 pointer-events-none flex-shrink-0"
+                                  style={{ accentColor: activeDieta.cor }}
+                                />
+                                <span className="text-xs font-medium leading-relaxed truncate-2-lines flex-1">
+                                  {item}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRecipeItem(item);
+                                }}
+                                className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer active:scale-95 ${
+                                  isDone
+                                    ? 'border-slate-850/60 bg-slate-900/30 text-slate-650 text-slate-500/70'
+                                    : 'border-amber-500/10 bg-amber-500/5 hover:bg-amber-500/10 text-amber-400'
+                                }`}
+                              >
+                                <ChefHat className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Receita</span>
+                              </button>
                             </div>
                           );
                         })}
@@ -408,6 +429,118 @@ export default function DietaScreen({ onNavigate, objective, setObjective }: Die
           )}
         </AnimatePresence>
       </div>
+
+      {/* RECIPE MODAL DETAIL OVERLAY */}
+      <AnimatePresence>
+        {selectedRecipeItem && (() => {
+          const recipe = RECIPE_DATABASE[selectedRecipeItem] || getGenericRecipe(selectedRecipeItem);
+
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-end justify-center sm:items-center bg-black/80 backdrop-blur-sm p-4"
+              onClick={() => setSelectedRecipeItem(null)}
+            >
+              <motion.div
+                initial={{ y: 50, scale: 0.95 }}
+                animate={{ y: 0, scale: 1 }}
+                exit={{ y: 50, scale: 0.95 }}
+                transition={{ type: 'spring', duration: 0.25 }}
+                className="bg-slate-950 border border-slate-850 w-full max-w-md rounded-t-[30px] sm:rounded-3xl shadow-2xl overflow-hidden text-left"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header pattern */}
+                <div className="relative p-6 pb-4 border-b border-slate-900 flex justify-between items-start bg-gradient-to-r from-amber-500/5 to-slate-950">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                      <ChefHat className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono font-black text-amber-500 tracking-widest uppercase">Gastronomia Saudável</span>
+                      <h3 className="text-white text-base font-black font-sans leading-snug mt-0.5">{recipe.title}</h3>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => setSelectedRecipeItem(null)}
+                    className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                  {/* Nutritional pills */}
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">Calorias</span>
+                      <span className="text-white font-black text-xs block mt-0.5">{recipe.calories} kcal</span>
+                    </div>
+                    <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">Proteínas</span>
+                      <span className="text-emerald-400 font-black text-xs block mt-0.5">{recipe.protein}g</span>
+                    </div>
+                    <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">Carbos</span>
+                      <span className="text-blue-400 font-black text-xs block mt-0.5">{recipe.carbs}g</span>
+                    </div>
+                    <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 block uppercase">Gorduras</span>
+                      <span className="text-purple-400 font-black text-xs block mt-0.5">{recipe.fats}g</span>
+                    </div>
+                  </div>
+
+                  {/* Ingredients */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-mono font-black text-amber-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-900 pb-1.5">
+                      <Salad className="w-4 h-4 text-amber-500" /> Ingredientes Necessários:
+                    </h4>
+                    <ul className="space-y-1.5 font-sans text-xs text-slate-300 list-disc pl-4 leading-relaxed">
+                      {recipe.ingredients.map((ing, iIdx) => (
+                        <li key={iIdx}>
+                          <span className="text-slate-200">{ing}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Preparation method */}
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-mono font-black text-amber-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-900 pb-1.5">
+                      <BookOpen className="w-4 h-4 text-amber-505 text-amber-500" /> Modo de Preparo:
+                    </h4>
+                    <p className="font-sans text-xs text-slate-300 leading-relaxed text-left whitespace-pre-line pl-0.5">
+                      {recipe.preparation}
+                    </p>
+                  </div>
+
+                  {/* Culinary Coach Insight */}
+                  <div className="bg-amber-500/5 p-4 rounded-2xl border border-amber-500/10 flex items-start gap-3">
+                    <Apple className="w-4.5 h-4.5 text-amber-505 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h5 className="font-sans font-black text-[10px] tracking-wide text-amber-400 uppercase">Segredo de Prep de Elite:</h5>
+                      <p className="text-[11px] font-sans text-slate-400 mt-0.5 leading-relaxed">
+                        {recipe.tip}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 border-t border-slate-900 bg-slate-950">
+                  <button
+                    onClick={() => setSelectedRecipeItem(null)}
+                    className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-sans font-black text-xs uppercase tracking-wider border border-slate-850 cursor-pointer text-center transition-all"
+                  >
+                    Entendido, voltar ao cardápio
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }
